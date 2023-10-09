@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <id>Beztek.Facade.Queue</id>
+    <version>1.0.0</version>
+    <authors>Peter Thomas</authors>
+    <owners>Beztek Software Solutions</owners>
+    <licenseUrl>https://github.com/Beztek-Software-Solutions/queue-facade/blob/main/LICENSE</licenseUrl>
+    <projectUrl>https://github.com/Beztek-Software-Solutions/queue-facade</projectUrl>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <description>Inter-service communication and queuing</description>
+    <releaseNotes>Inter-service communication and queuing</releaseNotes>
+    <copyright>Copyright 2023, Beztek Software Solutions</copyright>
+    <tags>Beztek.Facade.Queue;queue-facade;QueueFacade</tags>
+    <Description></Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Storage.Queues" Version="12.8.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+	  <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+	    <_Parameter1>Beztek.Facade.Queue.Tests</_Parameter1>
+	  </AssemblyAttribute>
+  </ItemGroup> 	
+
+</Project>

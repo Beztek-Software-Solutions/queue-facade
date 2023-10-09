@@ -1,0 +1,5 @@
+.vscode/*
+QueueFacade/bin/*
+QueueFacade/obj/*
+QueueFacade.Tests/bin/*
+QueueFacade.Tests/obj/*

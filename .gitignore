@@ -1,4 +1,5 @@
 .vscode/*
+.vs/*
 QueueFacade/bin/*
 QueueFacade/obj/*
 QueueFacade.Tests/bin/*

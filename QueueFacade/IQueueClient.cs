@@ -64,5 +64,11 @@ namespace Beztek.Facade.Queue
         /// Blocking method to stop Dequeuing.
         /// </summary>
         public Task<bool> StopDequeuing();
+
+        /// <summary>
+        /// Query the approximate current length of the queue. It may send a slightly larger-than-actual value
+        /// <paramref name="isHighPriorityQueue"></paramref>
+        /// </summary>
+        public Task<long> GetApproximateQueueLength(bool isHighPriorityQueue);
     }
 }

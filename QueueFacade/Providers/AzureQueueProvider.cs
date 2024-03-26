@@ -183,6 +183,11 @@ namespace Beztek.Facade.Queue.Providers
             await queueClient.DeleteMessageAsync(queueMessage.MessageId, queueMessage.PopReceipt);
         }
 
+        public async Task<long> GetApproximateQueueLength(bool isHighPriorityQueue)
+        {
+            return (long) GetQueueClient(isHighPriorityQueue).GetProperties().Value.ApproximateMessagesCount;
+        }
+
         // Internal
 
         /// <summary>

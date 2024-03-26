@@ -432,6 +432,12 @@ namespace Beztek.Facade.Queue
             return false;
         }
 
+        /// <inheritdoc />
+        public virtual async Task<long> GetApproximateQueueLength(bool isHighPriorityQueue)
+        {
+            return await queueProvider.GetApproximateQueueLength(isHighPriorityQueue);
+        }
+
         // Internal
 
         /// <summary>

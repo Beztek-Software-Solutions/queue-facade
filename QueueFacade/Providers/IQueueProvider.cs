@@ -67,5 +67,11 @@ namespace Beztek.Facade.Queue.Providers
         /// <param name="isHighPriorityQueue"></param>
         /// <returns></returns>
         IList<object> GetMessages(int maxMessagesToRetrieve, bool isHighPriorityQueue);
+
+        /// <summary>
+        /// Query the current length of the queue
+        /// <paramref name="isHighPriorityQueue"></paramref>
+        /// </summary>
+        Task<long> GetApproximateQueueLength(bool isHighPriorityQueue);
     }
 }

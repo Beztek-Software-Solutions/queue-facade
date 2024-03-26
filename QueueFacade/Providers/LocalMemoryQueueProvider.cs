@@ -131,6 +131,11 @@ namespace Beztek.Facade.Queue.Providers
             return this.unprocessedQueue.Count;
         }
 
+        public async Task<long> GetApproximateQueueLength(bool isHighPriorityQueue)
+        {
+            return (long) GetNumMessages(isHighPriorityQueue);
+        }
+
         // Internal
 
         internal int GetNumMessages(bool isHighPriorityQueue)

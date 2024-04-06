@@ -20,7 +20,7 @@ namespace Beztek.Facade.Queue.Providers
         private readonly ConcurrentDictionary<string, DateTime> highPriorityProcessingQueue;
         private readonly ConcurrentDictionary<string, DateTime> lowPriorityProcessingQueue;
 
-        internal LocalMemoryQueueProvider(ILogger logger = null, bool implementUnhide = true)
+        internal LocalMemoryQueueProvider(ILogger logger = null, bool implementUnhide = true, int visibilityTimeoutMilliseconds = 30000)
         {
             this.logger = logger;
             this.highPriorityQueue = new List<string>();
@@ -32,6 +32,7 @@ namespace Beztek.Facade.Queue.Providers
             {
                 _ = this.UnhideMessagesDaemon(true);
                 _ = this.UnhideMessagesDaemon(false);
+                this.VisibilityTimeoutMilliseconds = visibilityTimeoutMilliseconds;
             }
         }
 
@@ -41,7 +42,7 @@ namespace Beztek.Facade.Queue.Providers
 
         public bool HasLowPriorityQueue { get; set; } = true;
 
-        internal int HiddenPeriodMilliSeconds { get; set; } = 30000;
+        internal int VisibilityTimeoutMilliseconds { get; set; } = 30000;
 
         internal int UhhideCheckPeriodMilliseconds { get; set; } = 1000;
 
@@ -79,7 +80,7 @@ namespace Beztek.Facade.Queue.Providers
                 // Parallel.ForEach(new List<object>(result), message => { highPriorityProcessingQueue.Add(message.ToString(), DateTime.Now.AddMilliseconds(this.hiddenPeriodMilliSeconds)); });
                 foreach (object message in new List<object>(result))
                 {
-                    DateTime dateTime = DateTime.Now.AddMilliseconds(this.HiddenPeriodMilliSeconds);
+                    DateTime dateTime = DateTime.Now.AddMilliseconds(this.VisibilityTimeoutMilliseconds);
                     highPriorityProcessingQueue.AddOrUpdate(message.ToString(), dateTime, (Key, OldValue) => dateTime);
                 }
                 highPriorityQueue.RemoveAll(i => result.Contains(i));
@@ -90,7 +91,7 @@ namespace Beztek.Facade.Queue.Providers
                 // Parallel.ForEach(new List<object>(result), message => { lowPriorityProcessingQueue.Add(message.ToString(), DateTime.Now.AddMilliseconds(this.hiddenPeriodMilliSeconds)); });
                 foreach (object message in new List<object>(result))
                 {
-                    DateTime dateTime = DateTime.Now.AddMilliseconds(this.HiddenPeriodMilliSeconds);
+                    DateTime dateTime = DateTime.Now.AddMilliseconds(this.VisibilityTimeoutMilliseconds);
                     lowPriorityProcessingQueue.AddOrUpdate(message.ToString(), dateTime, (Key, OldValue) => dateTime);
                 }
                 lowPriorityQueue.RemoveAll(i => result.Contains(i));

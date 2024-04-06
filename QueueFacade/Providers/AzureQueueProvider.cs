@@ -49,9 +49,10 @@ namespace Beztek.Facade.Queue.Providers
 
             // High Priority Queue
             string highPriorityQueue = azureQueueProviderConfig.HighPriorityQueue.ToLower();
-            logger?.LogInformation("highPriorityQueue: {highPriorityQueue}");
-            QueueClient queueClient1 = this.CreateQueueClient(highPriorityQueue, azureQueueProviderConfig.Endpoint);
-            this._queueClients.Add(queueClient1);
+            logger?.LogInformation($"highPriorityQueue: {highPriorityQueue}");
+            QueueClient queueClient = this.CreateQueueClient(highPriorityQueue, azureQueueProviderConfig.Endpoint);
+            this.VisibilityTimeoutMilliseconds = azureQueueProviderConfig.VisibilityTimeoutMilliseconds;
+            this._queueClients.Add(queueClient);
             this.MaxMessageSize = _queueClients[0].MessageMaxBytes;
 
             // Unprocessed Message QUeue
@@ -72,6 +73,8 @@ namespace Beztek.Facade.Queue.Providers
         public bool HasLowPriorityQueue { get; }
 
         public int MaxMessageSize { get; }
+
+        public int VisibilityTimeoutMilliseconds { get; }
 
         public int MaxMessageCountPerPoll { get; } = ThirtyTwo;
         internal AzureStorageClientCreator azureStorageClientCreator { get; set; }
@@ -143,7 +146,7 @@ namespace Beztek.Facade.Queue.Providers
 
             QueueClient queueClient = this.GetQueueClient(isHighPriorityQueue);
 
-            QueueMessage[] queueMessages = queueClient.ReceiveMessages(maxMessagesToRetrieve);
+            QueueMessage[] queueMessages = queueClient.ReceiveMessages(maxMessagesToRetrieve, TimeSpan.FromMilliseconds(VisibilityTimeoutMilliseconds));
 
             try
             {

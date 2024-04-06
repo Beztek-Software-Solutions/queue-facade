@@ -67,7 +67,7 @@ namespace Beztek.Facade.Queue.Tests
         {
             // Create with unhide daemon
             LocalMemoryQueueProvider queueProvider = new LocalMemoryQueueProvider(logger, true);
-            queueProvider.HiddenPeriodMilliSeconds = 10;
+            queueProvider.VisibilityTimeoutMilliseconds = 10;
             queueProvider.UhhideCheckPeriodMilliseconds = 10;
 
             foreach (bool isHighPriorityQueue in new bool[] { true, false })

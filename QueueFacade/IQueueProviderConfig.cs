@@ -5,6 +5,8 @@ namespace Beztek.Facade.Queue
     public interface IQueueProviderConfig
     {
         string Name { get; }
+        
+        int VisibilityTimeoutMilliseconds { get; }
 
         QueueProviderType QueueProviderType { get; }
     }

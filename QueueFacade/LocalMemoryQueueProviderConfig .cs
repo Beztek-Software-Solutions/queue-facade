@@ -6,7 +6,7 @@ namespace Beztek.Facade.Queue
 
     public class LocalMemoryQueueProviderConfig : IQueueProviderConfig
     {
-        public LocalMemoryQueueProviderConfig(string name)
+        public LocalMemoryQueueProviderConfig(string name, int visibilityTimeoutMilliseconds = 30000)
         {
             // Name validation
             if (string.IsNullOrEmpty(name))
@@ -15,10 +15,12 @@ namespace Beztek.Facade.Queue
             }
 
             this.Name = name;
+            this.VisibilityTimeoutMilliseconds = visibilityTimeoutMilliseconds;
         }
 
         public QueueProviderType QueueProviderType { get; } = QueueProviderType.LocalMemory;
 
-        public string Name { get; }
+        public string Name { get; set; }
+        public int  VisibilityTimeoutMilliseconds { get; set; }
     }
 }

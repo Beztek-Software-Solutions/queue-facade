@@ -6,7 +6,7 @@ namespace Beztek.Facade.Queue.Providers
 
     public class AzureQueueProviderConfig : IQueueProviderConfig
     {
-        public AzureQueueProviderConfig(string name, string endpoint, string highPriorityQueue, string lowPriorityQueue = null)
+        public AzureQueueProviderConfig(string name, string endpoint, string highPriorityQueue, string lowPriorityQueue = null, int visibilityTimeoutMilliseconds = 30000)
         {
             // Name validation
             if (string.IsNullOrEmpty(name))
@@ -37,15 +37,18 @@ namespace Beztek.Facade.Queue.Providers
             this.Endpoint = endpoint;
             this.HighPriorityQueue = highPriorityQueue;
             this.LowPriorityQueue = lowPriorityQueue;
+            this.VisibilityTimeoutMilliseconds = visibilityTimeoutMilliseconds;
         }
 
         public QueueProviderType QueueProviderType { get; } = QueueProviderType.AzureStorage;
 
-        public string Name { get; }
+        public string Name { get; set; }
 
-        public string Endpoint { get; }
+        public int VisibilityTimeoutMilliseconds { get; set;}
 
-        public string HighPriorityQueue { get; }
+        public string Endpoint { get; set; }
+
+        public string HighPriorityQueue { get; set; }
 
         public string LowPriorityQueue { get; }
 

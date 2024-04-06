@@ -87,7 +87,7 @@ namespace Beztek.Facade.Queue.Tests
         public void GetMessagesTest()
         {
             Mock<Azure.Response<QueueMessage[]>> mockResponse = new Mock<Azure.Response<QueueMessage[]>>();
-            mockQueueClient.Setup(m => m.ReceiveMessages(It.IsAny<int>(), null, default(CancellationToken))).Returns(mockResponse.Object);
+            mockQueueClient.Setup(m => m.ReceiveMessages(It.IsAny<int>(), It.IsAny<TimeSpan>(), default(CancellationToken))).Returns(mockResponse.Object);
             mockResponse.Setup(m => m.Value).Returns(new QueueMessage[] { default(QueueMessage) });
 
             IList<object> result = queueProvider.GetMessages(10, true);

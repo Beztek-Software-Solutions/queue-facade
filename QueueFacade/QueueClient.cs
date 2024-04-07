@@ -95,7 +95,7 @@ namespace Beztek.Facade.Queue
             }
             else
             {
-                this.logger?.LogInformation($"Successfully enqueued {messages.Count} messages in EnqueueList()");
+                this.logger?.LogDebug($"Successfully enqueued {messages.Count} messages in EnqueueList()");
             }
 
             // Return the list of
@@ -139,7 +139,7 @@ namespace Beztek.Facade.Queue
             if (messages == null || messages.Count == 0)
             {
                 // nothing to enqueue, so return an empty list back
-                this.logger?.LogInformation("Nothing to enqueue, return an empty list back");
+                this.logger?.LogDebug("Nothing to enqueue, return an empty list back");
                 return new List<T>();
             }
 
@@ -151,7 +151,7 @@ namespace Beztek.Facade.Queue
             // Get the message size if the entire list is posted in a single message
             int messageSize = MessageUtils.GetMessageSize(messages, activityId);
 
-            this.logger?.LogInformation($"Requesting post {messages.Count} message(s), the size is {messageSize}");
+            this.logger?.LogDebug($"Requesting post {messages.Count} message(s), the size is {messageSize}");
 
             // Check that we can post post all of the objects in the list with a single message
             if (messageSize <= queueProvider.MaxMessageSize)
@@ -210,7 +210,7 @@ namespace Beztek.Facade.Queue
                         }
 
                         // Since we have come here, the subList from the current iteration can be posted in a single message.
-                        this.logger?.LogInformation($"Posting {currSubList.Count} message(s), the size is {subMessageSize}");
+                        this.logger?.LogDebug($"Posting {currSubList.Count} message(s), the size is {subMessageSize}");
 
                         // Posting all the messages in the current subList, and tracking success asynchronously
                         postRequests.Add(currSubList);
@@ -366,9 +366,9 @@ namespace Beztek.Facade.Queue
 
                     if (availableAsyncProcessSlots <= 0)
                     {
+                        this.logger?.LogDebug("PollMessage() - Reached max async process count of " + QueueDequeueConfig.MaxAsynchronousProcesses);
                         // Sleep for pollIntervalInMilliseconds before proceeding, to avoid a race condition
                         await Task.Delay(TimeSpan.FromMilliseconds(QueueDequeueConfig.PollIntervalMilliseconds)).ConfigureAwait(false);
-                        this.logger?.LogError("PollMessage() - Reached max async process count of " + QueueDequeueConfig.MaxAsynchronousProcesses);
                     }
 
                     // process the remaining list of messages since we are either exiting the loop or have completed a polling interval
@@ -467,7 +467,7 @@ namespace Beztek.Facade.Queue
                 }
 
                 // Placeholder for distributed tracing
-                this.logger?.LogInformation($"Processing message for activityId: {activityId}");
+                this.logger?.LogDebug($"Processing message for activityId: {activityId}");
 
                 Boolean processed = false;
 
@@ -542,7 +542,7 @@ namespace Beztek.Facade.Queue
                         messageList.Add(message);
 
                         // Placeholder for distributed tracing
-                        this.logger?.LogInformation($"Processing message for activityId: {activityId}");
+                        this.logger?.LogDebug($"Processing message for activityId: {activityId}");
                     }
                     catch (Exception e)
                     {
@@ -615,7 +615,7 @@ namespace Beztek.Facade.Queue
                         }
                     }
 
-                    this.logger?.LogInformation($"Completed processing of Queue ProcessMessageList with {messageHookList.Count} messages");
+                    this.logger?.LogDebug($"Completed processing of Queue ProcessMessageList with {messageHookList.Count} messages");
                 }
                 catch (Exception ex)
                 {

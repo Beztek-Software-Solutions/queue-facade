@@ -49,21 +49,21 @@ namespace Beztek.Facade.Queue.Providers
 
             // High Priority Queue
             string highPriorityQueue = azureQueueProviderConfig.HighPriorityQueue.ToLower();
-            logger?.LogInformation($"highPriorityQueue: {highPriorityQueue}");
+            logger?.LogDebug($"highPriorityQueue: {highPriorityQueue}");
             QueueClient queueClient = this.CreateQueueClient(highPriorityQueue, azureQueueProviderConfig.Endpoint);
             this.VisibilityTimeoutMilliseconds = azureQueueProviderConfig.VisibilityTimeoutMilliseconds;
             this._queueClients.Add(queueClient);
             this.MaxMessageSize = _queueClients[0].MessageMaxBytes;
 
             // Unprocessed Message QUeue
-            logger?.LogInformation($"UnprocessedMessageQueue: {Constants.UnprocessedMessageQueue}");
+            logger?.LogDebug($"UnprocessedMessageQueue: {Constants.UnprocessedMessageQueue}");
             unprocessedQueueClient = this.CreateQueueClient(Constants.UnprocessedMessageQueue, azureQueueProviderConfig.Endpoint);
 
             // Low Priority Queue
             if (!string.IsNullOrEmpty(azureQueueProviderConfig.LowPriorityQueue))
             {
                 string lowPriorityQueue = azureQueueProviderConfig.LowPriorityQueue.ToLower();
-                logger?.LogInformation($"lowPriorityQueue: {lowPriorityQueue}");
+                logger?.LogDebug($"lowPriorityQueue: {lowPriorityQueue}");
                 QueueClient queueClient2 = this.CreateQueueClient(lowPriorityQueue, azureQueueProviderConfig.Endpoint);
                 this.HasLowPriorityQueue = true;
                 this._queueClients.Add(queueClient2);

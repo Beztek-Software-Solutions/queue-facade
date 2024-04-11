@@ -23,6 +23,7 @@ namespace Beztek.Facade.Queue
         private const int One = 1;
         private const int MaxSendMessageRetryCount = 3;
 
+        private readonly string name;
         private readonly ILogger logger;
 
         // Flags if polling should continue or should stop
@@ -46,10 +47,16 @@ namespace Beztek.Facade.Queue
         /// <param name="endpoint"></param>
         /// <param name="highPriorityQueue"></param>
         /// <param name="lowPriorityQueue"></param>
-        internal QueueClient(IQueueProvider queueProvider, ILogger logger = null)
+        internal QueueClient(string name, IQueueProvider queueProvider, ILogger logger = null)
         {
+            this.name = name;
             this.queueProvider = queueProvider;
             this.logger = logger;
+        }
+
+        public string GetName()
+        {
+            return this.name;
         }
 
         // When we stop dequeueing, we should be able to restart dequeing, so we will need to know that was set

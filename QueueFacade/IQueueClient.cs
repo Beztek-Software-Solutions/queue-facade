@@ -12,6 +12,11 @@ namespace Beztek.Facade.Queue
     public interface IQueueClient
     {
         /// <summary>
+        /// Returns the name of this queue client
+        /// </summary>
+        public string GetName();
+
+        /// <summary>
         /// Receive messages from queue and pass to <see cref="processor"/>
         /// </summary>
         /// <param name="maxMessageRate">The number of messages per second.</param>

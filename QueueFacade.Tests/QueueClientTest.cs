@@ -24,7 +24,7 @@ namespace Beztek.Facade.Queue.Tests
         public void TestInitialize()
         {
             this.queueProvider = new LocalMemoryQueueProvider(logger);
-            this.queueClient = new QueueClient(queueProvider, logger);
+            this.queueClient = new QueueClient("TestQueueClient", queueProvider, logger);
         }
 
         [Test]

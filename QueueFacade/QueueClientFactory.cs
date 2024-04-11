@@ -29,12 +29,12 @@ namespace Beztek.Facade.Queue
                     case QueueProviderType.AzureStorage:
                         AzureQueueProviderConfig config = (AzureQueueProviderConfig)queueProviderConfig;
                         IQueueProvider queueProvider = new AzureQueueProvider(config, logger);
-                        result = new QueueClient(queueProvider, logger);
+                        result = new QueueClient(queueProviderConfig.Name, queueProvider, logger);
                         queueClientMap.GetOrAdd(key, result);  // Returns the new value, or the existing value if the key exists.
                         break;
                     case QueueProviderType.LocalMemory:
                         queueProvider = new LocalMemoryQueueProvider(logger, true, queueProviderConfig.VisibilityTimeoutMilliseconds);
-                        result = new QueueClient(queueProvider, logger);
+                        result = new QueueClient(queueProviderConfig.Name, queueProvider, logger);
                         queueClientMap.GetOrAdd(key, result);  // Returns the new value, or the existing value if the key exists.
                         break;
                     default:

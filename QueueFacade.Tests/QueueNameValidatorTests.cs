@@ -59,7 +59,7 @@ namespace Beztek.Facade.Queue.Tests
 
             string message = Assert.Throws<ArgumentException>(() => AzureQueueNameValidator.ValidateQueueName(reservedQueueName)).Message;
 
-            Assert.AreEqual(message, string.Format(CultureInfo.InvariantCulture, Constants.InvalidResourceReservedName, reservedQueueName));
+            Assert.That(message, Is.EqualTo(string.Format(CultureInfo.InvariantCulture, Constants.InvalidResourceReservedName, reservedQueueName)));
         }
 
         [Test]

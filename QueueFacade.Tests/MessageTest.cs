@@ -27,7 +27,7 @@ namespace Beztek.Facade.Queue.Tests
         {
             message.ActivityId = activityId;
             string result = message.ActivityId;
-            Assert.AreEqual(result, activityId);
+            Assert.That(result, Is.EqualTo(activityId));
         }
 
         [Test]
@@ -35,7 +35,7 @@ namespace Beztek.Facade.Queue.Tests
         {
             message.MessageType = mymessageType;
             string result = message.MessageType;
-            Assert.AreEqual(result, mymessageType);
+            Assert.That(result, Is.EqualTo(mymessageType));
         }
 
         [Test]
@@ -43,7 +43,7 @@ namespace Beztek.Facade.Queue.Tests
         {
             message.RawMessage = mymessage;
             string result = (string)message.RawMessage;
-            Assert.AreEqual(result, mymessage);
+            Assert.That(result, Is.EqualTo(mymessage));
         }
 
         [Test]
@@ -53,7 +53,7 @@ namespace Beztek.Facade.Queue.Tests
             message.MessageType = mymessageType;
             message.RawMessage = JsonConvert.SerializeObject(mymessage);
             string result = message.GetMessageObject<string>();
-            Assert.AreEqual(result, mymessage);
+            Assert.That(result, Is.EqualTo(mymessage));
         }
 
         [Test]
@@ -64,7 +64,7 @@ namespace Beztek.Facade.Queue.Tests
             message.MessageType = typeof(TestTypedMessage).ToString();
             message.RawMessage = JsonConvert.SerializeObject(testObject);
             TestTypedMessage result = message.GetMessageObject<TestTypedMessage>();
-            Assert.AreEqual(result, testObject);
+            Assert.That(result, Is.EqualTo(testObject));
         }
 
         [Test]
@@ -75,7 +75,7 @@ namespace Beztek.Facade.Queue.Tests
             string stringifiedMessage = JsonConvert.SerializeObject(message);
             Message unstringifiedMessage = JsonConvert.DeserializeObject<Message>(stringifiedMessage);
             TestTypedMessage result = unstringifiedMessage.GetMessageObject<TestTypedMessage>();
-            Assert.AreEqual(result, testObject);
+            Assert.That(result, Is.EqualTo(testObject));
         }
 
         // Internal

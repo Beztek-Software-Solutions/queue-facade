@@ -41,7 +41,7 @@ namespace Beztek.Facade.Queue.Tests
                 _ = queueClient.Enqueue(message, isHighPriorityQueue, activityId);
 
                 // Assert
-                Assert.AreEqual(1, this.queueProvider.GetNumMessages(isHighPriorityQueue));
+                Assert.That(1, Is.EqualTo(this.queueProvider.GetNumMessages(isHighPriorityQueue)));
             }
         }
 
@@ -63,8 +63,8 @@ namespace Beztek.Facade.Queue.Tests
                 bool response = queueClient.Enqueue(s, isHighPriorityQueue, "myactivityId").Result;
 
                 // Assert
-                Assert.IsTrue(response);
-                Assert.AreEqual(1, this.queueProvider.GetNumMessages(isHighPriorityQueue));
+                Assert.That(response, Is.True);
+                Assert.That(1, Is.EqualTo(this.queueProvider.GetNumMessages(isHighPriorityQueue)));
             }
         }
 
@@ -106,8 +106,8 @@ namespace Beztek.Facade.Queue.Tests
                 bool response = queueClient.Enqueue(s, isHighPriorityQueue, "myactivityId").Result;
 
                 // Assert
-                Assert.IsFalse(response);
-                Assert.AreEqual(0, this.queueProvider.GetNumMessages(isHighPriorityQueue));
+                Assert.That(response, Is.False);
+                Assert.That(0, Is.EqualTo(this.queueProvider.GetNumMessages(isHighPriorityQueue)));
             }
         }
 
@@ -123,8 +123,8 @@ namespace Beztek.Facade.Queue.Tests
                 var unSentMessages = queueClient.EnqueueBatchedMessages(emptyList, isHighPriorityQueue, activityId).Result;
 
                 // Assert
-                Assert.AreEqual(0, unSentMessages.Count);
-                Assert.AreEqual(0, this.queueProvider.GetNumMessages(isHighPriorityQueue));
+                Assert.That(0, Is.EqualTo(unSentMessages.Count));
+                Assert.That(0, Is.EqualTo(this.queueProvider.GetNumMessages(isHighPriorityQueue)));
             }
         }
 
@@ -140,8 +140,8 @@ namespace Beztek.Facade.Queue.Tests
                 var unSentMessages = queueClient.EnqueueBatchedMessages(oneElementList, isHighPriorityQueue, activityId).Result;
 
                 // Assert
-                Assert.AreEqual(0, unSentMessages.Count);
-                Assert.AreEqual(1, this.queueProvider.GetNumMessages(isHighPriorityQueue));
+                Assert.That(0, Is.EqualTo(unSentMessages.Count));
+                Assert.That(1, Is.EqualTo(this.queueProvider.GetNumMessages(isHighPriorityQueue)));
             }
         }
 
@@ -164,7 +164,7 @@ namespace Beztek.Facade.Queue.Tests
                 // Assert
                 for (int i = 0; i < 1000; i++)
                 {
-                    Assert.IsTrue(result[i]);
+                    Assert.That(result[i], Is.True);
                 }
             }
         }
@@ -187,10 +187,10 @@ namespace Beztek.Facade.Queue.Tests
                 IList<bool> result = queueClient.Enqueue<string>(largeList, isHighPriorityQueue, activityId).Result;
 
                 // Assert
-                Assert.IsFalse(result[0]);
+                Assert.That(result[0], Is.False);
                 for (int i = 1; i < 1001; i++)
                 {
-                    Assert.IsTrue(result[i]);
+                    Assert.That(result[i], Is.True);
                 }
             }
         }
@@ -212,7 +212,7 @@ namespace Beztek.Facade.Queue.Tests
                 var unSentMessages = queueClient.EnqueueBatchedMessages(largeList, isHighPriorityQueue, activityId).Result;
 
                 // Assert
-                Assert.AreEqual(0, unSentMessages.Count);
+                Assert.That(0, Is.EqualTo(unSentMessages.Count));
             }
         }
 
@@ -229,7 +229,7 @@ namespace Beztek.Facade.Queue.Tests
                 var unSentMessages = queueClient.EnqueueBatchedMessages(oneElementList, isHighPriorityQueue, activityId).Result;
 
                 // Assert
-                Assert.AreEqual(1, unSentMessages.Count);
+                Assert.That(1, Is.EqualTo(unSentMessages.Count));
             }
         }
 
@@ -246,7 +246,7 @@ namespace Beztek.Facade.Queue.Tests
                 var unSentMessages = queueClient.EnqueueBatchedMessages(twoElementList, isHighPriorityQueue, activityId).Result;
 
                 // Assert
-                Assert.AreEqual(2, unSentMessages.Count);
+                Assert.That(2, Is.EqualTo(unSentMessages.Count));
             }
         }
 
@@ -271,8 +271,8 @@ namespace Beztek.Facade.Queue.Tests
                 var unSentMessages = queueClient.EnqueueBatchedMessages(twoElementsList, isHighPriorityQueue, activityId).Result;
 
                 // Assert
-                Assert.AreEqual(0, unSentMessages.Count);
-                Assert.AreEqual(2, this.queueProvider.GetNumMessages(isHighPriorityQueue));
+                Assert.That(0, Is.EqualTo(unSentMessages.Count));
+                Assert.That(2, Is.EqualTo(this.queueProvider.GetNumMessages(isHighPriorityQueue)));
             }
         }
 
@@ -296,8 +296,8 @@ namespace Beztek.Facade.Queue.Tests
                 var unSentMessages = queueClient.EnqueueBatchedMessages(twoElementsList, isHighPriorityQueue, activityId).Result;
 
                 // Assert
-                Assert.AreEqual(0, unSentMessages.Count);
-                Assert.AreEqual(1, this.queueProvider.GetNumMessages(isHighPriorityQueue));
+                Assert.That(0, Is.EqualTo(unSentMessages.Count));
+                Assert.That(1, Is.EqualTo(this.queueProvider.GetNumMessages(isHighPriorityQueue)));
             }
         }
 
@@ -307,8 +307,8 @@ namespace Beztek.Facade.Queue.Tests
             bool results = queueClient.EnqueueUnprocessedMessages<string>(message, activityId).Result;
 
             // Assert
-            Assert.IsTrue(results);
-            Assert.AreEqual(1, this.queueProvider.GetNumUnprocessedMessages().Result);
+            Assert.That(results, Is.True);
+            Assert.That(1, Is.EqualTo(this.queueProvider.GetNumUnprocessedMessages().Result));
         }
 
         [Test]
@@ -336,8 +336,8 @@ namespace Beztek.Facade.Queue.Tests
             bool response = queueClient.EnqueueUnprocessedMessages(s, "myactivityId").Result;
 
             // Assert
-            Assert.IsFalse(response);
-            Assert.AreEqual(0, this.queueProvider.GetNumUnprocessedMessages().Result);
+            Assert.That(response, Is.False);
+            Assert.That(0, Is.EqualTo(this.queueProvider.GetNumUnprocessedMessages().Result));
         }
 
         [Test]
@@ -355,7 +355,7 @@ namespace Beztek.Facade.Queue.Tests
                     _ = queueClient.Enqueue($"{i}", isHighPriorityQueue).Result;
                 }
 
-                Assert.AreEqual(numMessages, this.queueProvider.GetNumMessages(isHighPriorityQueue));
+                Assert.That(numMessages, Is.EqualTo(this.queueProvider.GetNumMessages(isHighPriorityQueue)));
 
                 TestMessageProcessor messageProcessor = new TestMessageProcessor();
                 IQueueProcessorHandler handler = IQueueProcessorHandler.Default().AddProcessor(typeof(string), messageProcessor);
@@ -365,10 +365,10 @@ namespace Beztek.Facade.Queue.Tests
 
                 Task.Run(() => {
                     Thread.Sleep(((1000 * numMessages + maxMessageRate - 1) / maxMessageRate) * pollingIntervalMillis + 1 + 2000);
-                    Assert.IsTrue(this.queueClient.StopDequeuing().Result);
+                    Assert.That(this.queueClient.StopDequeuing().Result, Is.True);
 
-                    Assert.AreEqual(numMessages, messageProcessor.GetProcessCount());
-                    Assert.AreEqual(0, this.queueProvider.GetNumMessages(isHighPriorityQueue));
+                    Assert.That(numMessages, Is.EqualTo(messageProcessor.GetProcessCount()));
+                    Assert.That(0, Is.EqualTo(this.queueProvider.GetNumMessages(isHighPriorityQueue)));
                 }).Wait();
             }
         }
@@ -388,7 +388,7 @@ namespace Beztek.Facade.Queue.Tests
                     _ = queueClient.Enqueue($"{i}", isHighPriorityQueue).Result;
                 }
 
-                Assert.AreEqual(numMessages, this.queueProvider.GetNumMessages(isHighPriorityQueue));
+                Assert.That(numMessages, Is.EqualTo(this.queueProvider.GetNumMessages(isHighPriorityQueue)));
 
                 TestMessageProcessor messageProcessor = new TestMessageProcessor();
                 IQueueProcessorHandler handler = IQueueProcessorHandler.Default().AddProcessor(typeof(string), messageProcessor);
@@ -398,11 +398,11 @@ namespace Beztek.Facade.Queue.Tests
 
                 Task.Run(() => {
                     Thread.Sleep(((1000 * numMessages + maxMessageRate - 1) / maxMessageRate) * pollingIntervalMillis + 1 + 2000);
-                    Assert.IsTrue(this.queueClient.StopDequeuing().Result);
+                    Assert.That(this.queueClient.StopDequeuing().Result, Is.True);
 
-                    Assert.AreEqual((numMessages + batchSize - 1) / batchSize, messageProcessor.GetProcessListCount());
-                    Assert.AreEqual(numMessages, messageProcessor.GetProcessCount());
-                    Assert.AreEqual(0, this.queueProvider.GetNumMessages(isHighPriorityQueue));
+                    Assert.That((numMessages + batchSize - 1) / batchSize, Is.EqualTo(messageProcessor.GetProcessListCount()));
+                    Assert.That(numMessages, Is.EqualTo(messageProcessor.GetProcessCount()));
+                    Assert.That(0, Is.EqualTo(this.queueProvider.GetNumMessages(isHighPriorityQueue)));
                 }).Wait();
             }
         }

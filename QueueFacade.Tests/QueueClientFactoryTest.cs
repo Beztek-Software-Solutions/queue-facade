@@ -20,7 +20,7 @@ namespace Beztek.Facade.Queue.Tests
             AzureQueueProviderConfig config = new AzureQueueProviderConfig("azure", "endpoint", "high-priority-queue", "low-prority-queue");
             config.AzureStorageClientCreator = new TestAzureStorageClientCreator(new Mock<Azure.Storage.Queues.QueueClient>().Object);
             IQueueClient client = QueueClientFactory.GetQueueClient(config, logger);
-            Assert.IsNotNull(client);
+            Assert.That(client, Is.Not.Null);
         }
 
         [Test]
@@ -28,7 +28,7 @@ namespace Beztek.Facade.Queue.Tests
         {
             LocalMemoryQueueProviderConfig config = new LocalMemoryQueueProviderConfig("memory");
             IQueueClient client = QueueClientFactory.GetQueueClient(config, logger);
-            Assert.IsNotNull(client);
+            Assert.That(client, Is.Not.Null);
         }
 
         [Test]

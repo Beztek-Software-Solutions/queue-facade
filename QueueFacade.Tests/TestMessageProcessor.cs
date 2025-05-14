@@ -19,7 +19,7 @@ namespace Beztek.Facade.Queue.Tests
             this.throwException = throwException;
         }
 
-        public override async Task<bool> Process(Message message)
+        public override Task<bool> Process(Message message)
         {
             if (this.throwException)
             {
@@ -27,7 +27,7 @@ namespace Beztek.Facade.Queue.Tests
             }
 
             Interlocked.Add(ref processCount, 1);
-            return true;
+            return Task.FromResult(true);
         }
 
         public override async Task<List<bool>> Process(List<Message> messageList)

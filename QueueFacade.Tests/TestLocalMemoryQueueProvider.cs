@@ -33,11 +33,11 @@ namespace Beztek.Facade.Queue.Tests
                 _ = queueProvider.SendMessageAsync("test message 1", isHighPriorityQueue).Result;
                 _ = queueProvider.SendMessageAsync("test message 2", isHighPriorityQueue).Result;
                 IList<object> messages = queueProvider.GetMessages(10, isHighPriorityQueue);
-                Assert.AreEqual(2, messages.Count);
-                Assert.AreEqual(0, queueProvider.GetNumMessages(isHighPriorityQueue));
-                Assert.AreEqual(2, queueProvider.GetNumProcessingMessages(isHighPriorityQueue));
+                Assert.That(2, Is.EqualTo(messages.Count));
+                Assert.That(0, Is.EqualTo(queueProvider.GetNumMessages(isHighPriorityQueue)));
+                Assert.That(2, Is.EqualTo(queueProvider.GetNumProcessingMessages(isHighPriorityQueue)));
                 await queueProvider.DeleteMessageAsync("test message 1", isHighPriorityQueue).ConfigureAwait(false);
-                Assert.AreEqual(1, queueProvider.GetNumProcessingMessages(isHighPriorityQueue));
+                Assert.That(1, Is.EqualTo(queueProvider.GetNumProcessingMessages(isHighPriorityQueue)));
             }
         }
 
@@ -49,8 +49,8 @@ namespace Beztek.Facade.Queue.Tests
             {
                 await queueProvider.SendMessageAsync("test message 1", isHighPriorityQueue).ConfigureAwait(false);
                 IList<object> messages = queueProvider.GetMessages(10, isHighPriorityQueue);
-                Assert.AreEqual(1, messages.Count);
-                Assert.AreEqual("test message 1", queueProvider.GetMessageBody(messages[0]));
+                Assert.That(1, Is.EqualTo(messages.Count));
+                Assert.That("test message 1", Is.EqualTo(queueProvider.GetMessageBody(messages[0])));
             }
         }
 
@@ -59,7 +59,7 @@ namespace Beztek.Facade.Queue.Tests
         {
             LocalMemoryQueueProvider queueProvider = new LocalMemoryQueueProvider(logger, false);
             await queueProvider.SendUnprocessedMessageAsync("test message 1").ConfigureAwait(false);
-            Assert.AreEqual(1, await queueProvider.GetNumUnprocessedMessages().ConfigureAwait(false));
+            Assert.That(1, Is.EqualTo(await queueProvider.GetNumUnprocessedMessages().ConfigureAwait(false)));
         }
 
         [Test]
@@ -74,12 +74,12 @@ namespace Beztek.Facade.Queue.Tests
             {
                 await queueProvider.SendMessageAsync("test message 1", isHighPriorityQueue).ConfigureAwait(false);
                 IList<object> messages = queueProvider.GetMessages(10, isHighPriorityQueue);
-                Assert.AreEqual(1, messages.Count);
-                Assert.AreEqual(0, queueProvider.GetMessages(10, isHighPriorityQueue).Count);
+                Assert.That(1, Is.EqualTo(messages.Count));
+                Assert.That(0, Is.EqualTo(queueProvider.GetMessages(10, isHighPriorityQueue).Count));
 
                 // Message should reappaer after the unhide period
                 await Task.Delay(21).ConfigureAwait(false);
-                Assert.AreEqual(1, queueProvider.GetMessages(10, isHighPriorityQueue).Count);
+                Assert.That(1, Is.EqualTo(queueProvider.GetMessages(10, isHighPriorityQueue).Count));
             }
         }
     }

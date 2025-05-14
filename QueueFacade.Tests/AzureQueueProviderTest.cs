@@ -38,19 +38,19 @@ namespace Beztek.Facade.Queue.Tests
         [Test]
         public void MaxMessageCountPerPollTest()
         {
-            Assert.AreEqual(32, queueProvider.MaxMessageCountPerPoll);
+            Assert.That(32, Is.EqualTo(queueProvider.MaxMessageCountPerPoll));
         }
 
         [Test]
         public void MaxMessageSizeTest()
         {
-            Assert.AreEqual(maxMessageSize, queueProvider.MaxMessageSize);
+            Assert.That(maxMessageSize, Is.EqualTo(queueProvider.MaxMessageSize));
         }
 
         [Test]
         public void HasLowPriorityQueueTest()
         {
-            Assert.IsFalse(queueProvider.HasLowPriorityQueue);
+            Assert.That(queueProvider.HasLowPriorityQueue, Is.False);
         }
 
         [Test]
@@ -91,7 +91,7 @@ namespace Beztek.Facade.Queue.Tests
             mockResponse.Setup(m => m.Value).Returns(new QueueMessage[] { default(QueueMessage) });
 
             IList<object> result = queueProvider.GetMessages(10, true);
-            Assert.AreEqual(1, result.Count);
+            Assert.That(1, Is.EqualTo(result.Count));
         }
 
         [Test]

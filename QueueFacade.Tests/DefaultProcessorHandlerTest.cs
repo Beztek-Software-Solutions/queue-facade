@@ -22,7 +22,7 @@ namespace Beztek.Facade.Queue.Tests
         {
             TestMessageProcessor callback = new TestMessageProcessor();
             IQueueProcessorHandler sqhandler = handler.AddProcessor(typeof(string), callback);
-            Assert.IsNotNull(sqhandler);
+            Assert.That(sqhandler, Is.Not.Null);
         }
 
         [Test]
@@ -30,7 +30,7 @@ namespace Beztek.Facade.Queue.Tests
         {
             TestMessageProcessor callback = new TestMessageProcessor();
             IQueueProcessorHandler sqhandler = IQueueProcessorHandler.Default().AddProcessor(typeof(string), callback);
-            Assert.IsNotNull(sqhandler);
+            Assert.That(sqhandler, Is.Not.Null);
         }
 
 
@@ -43,7 +43,7 @@ namespace Beztek.Facade.Queue.Tests
                 MessageType = "type"
             };
             bool result = handler.Process(message).Result;
-            Assert.IsFalse(result);
+            Assert.That(result, Is.False);
         }
 
         [Test]
@@ -58,7 +58,7 @@ namespace Beztek.Facade.Queue.Tests
                 MessageType = "System.String"
             };
             bool result = handler.Process(message).Result;
-            Assert.IsTrue(result);
+            Assert.That(result, Is.True);
         }
 
         [Test]
@@ -79,9 +79,9 @@ namespace Beztek.Facade.Queue.Tests
             }
 
             List<bool> result = handler.Process(messageList).Result;
-            Assert.IsTrue(result[0]);
-            Assert.AreEqual(1, callback.GetProcessListCount());
-            Assert.AreEqual(2, callback.GetProcessCount());
+            Assert.That(result[0], Is.True);
+            Assert.That(1, Is.EqualTo(callback.GetProcessListCount()));
+            Assert.That(2, Is.EqualTo(callback.GetProcessCount()));
         }
     }
 }

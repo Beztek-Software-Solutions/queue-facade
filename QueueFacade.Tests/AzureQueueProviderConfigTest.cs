@@ -14,22 +14,22 @@ namespace Beztek.Facade.Queue.Tests
         public void ConstructorTest_HappyPath()
         {
             AzureQueueProviderConfig config = new AzureQueueProviderConfig("name", "endpoint", "high-priority-queue", "low-prority-queue");
-            Assert.AreEqual(QueueProviderType.AzureStorage, config.QueueProviderType);
-            Assert.AreEqual("name", config.Name);
-            Assert.AreEqual("endpoint", config.Endpoint);
-            Assert.AreEqual("high-priority-queue", config.HighPriorityQueue);
-            Assert.AreEqual("low-prority-queue", config.LowPriorityQueue);
+            Assert.That(QueueProviderType.AzureStorage, Is.EqualTo(config.QueueProviderType));
+            Assert.That("name", Is.EqualTo(config.Name));
+            Assert.That("endpoint", Is.EqualTo(config.Endpoint));
+            Assert.That("high-priority-queue", Is.EqualTo(config.HighPriorityQueue));
+            Assert.That("low-prority-queue", Is.EqualTo(config.LowPriorityQueue));
         }
 
         [Test]
         public void ConstructorTest_NoLowPriorityQueue()
         {
             AzureQueueProviderConfig config = new AzureQueueProviderConfig("name", "endpoint", "high-priority-queue");
-            Assert.AreEqual(QueueProviderType.AzureStorage, config.QueueProviderType);
-            Assert.AreEqual("name", config.Name);
-            Assert.AreEqual("endpoint", config.Endpoint);
-            Assert.AreEqual("high-priority-queue", config.HighPriorityQueue);
-            Assert.IsNull(config.LowPriorityQueue);
+            Assert.That(QueueProviderType.AzureStorage, Is.EqualTo(config.QueueProviderType));
+            Assert.That("name", Is.EqualTo(config.Name));
+            Assert.That("endpoint", Is.EqualTo(config.Endpoint));
+            Assert.That("high-priority-queue", Is.EqualTo(config.HighPriorityQueue));
+            Assert.That(config.LowPriorityQueue, Is.Null);
         }
 
         [Test]

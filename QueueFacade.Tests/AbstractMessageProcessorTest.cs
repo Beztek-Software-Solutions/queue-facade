@@ -3,6 +3,7 @@
 namespace Beztek.Facade.Queue.Tests
 {
     using System;
+    using System.IO;
     using System.Collections.Generic;
     using NUnit.Framework;
     using Queue;
@@ -16,8 +17,8 @@ namespace Beztek.Facade.Queue.Tests
             TestMessageProcessor messageProcessor = new TestMessageProcessor();
             Message message = new Message("Test message", "abc");
             messageProcessor.Process(message).Wait();
-            Assert.AreEqual(1, messageProcessor.GetProcessCount());
-            Assert.AreEqual(0, messageProcessor.GetProcessListCount());
+            Assert.That(1, Is.EqualTo(messageProcessor.GetProcessCount()));
+            Assert.That(0, Is.EqualTo(messageProcessor.GetProcessListCount()));
         }
 
         [Test]
@@ -28,10 +29,10 @@ namespace Beztek.Facade.Queue.Tests
             messageList.Add(new Message("Test message1", "abc"));
             messageList.Add(new Message("Test message2", "abc"));
             List<bool> results = messageProcessor.Process(messageList).Result;
-            Assert.AreEqual(2, messageProcessor.GetProcessCount());
-            Assert.AreEqual(1, messageProcessor.GetProcessListCount());
-            Assert.AreEqual(true, results[0]);
-            Assert.AreEqual(true, results[1]);
+            Assert.That(2, Is.EqualTo(messageProcessor.GetProcessCount()));
+            Assert.That(1,Is.EqualTo(messageProcessor.GetProcessListCount()));
+            Assert.That(true, Is.EqualTo(results[0]));
+            Assert.That(true, Is.EqualTo(results[1]));
         }
 
         [Test]
@@ -39,7 +40,7 @@ namespace Beztek.Facade.Queue.Tests
         {
             TestMessageProcessor messageProcessor = new TestMessageProcessor(true);
             Message message = new Message("Test message", "abc");
-            Assert.Throws<AggregateException>(() => _ = messageProcessor.Process(message).Result);
+            Assert.Throws<IOException>(() => _ = messageProcessor.Process(message).Result);
         }
 
         [Test]
@@ -50,8 +51,8 @@ namespace Beztek.Facade.Queue.Tests
             messageList.Add(new Message("Test message1", "abc"));
             messageList.Add(new Message("Test message2", "abc"));
             List<bool> results = messageProcessor.Process(messageList).Result;
-            Assert.AreEqual(false, results[0]);
-            Assert.AreEqual(false, results[1]);
+            Assert.That(false, Is.EqualTo(results[0]));
+            Assert.That(false, Is.EqualTo(results[1]));
         }
     }
 }

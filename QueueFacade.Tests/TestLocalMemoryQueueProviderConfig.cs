@@ -13,8 +13,8 @@ namespace Beztek.Facade.Queue.Tests
         public void ConstructorTest_HappyPath()
         {
             LocalMemoryQueueProviderConfig config = new LocalMemoryQueueProviderConfig("name");
-            Assert.AreEqual(QueueProviderType.LocalMemory, config.QueueProviderType);
-            Assert.AreEqual("name", config.Name);
+            Assert.That(QueueProviderType.LocalMemory, Is.EqualTo(config.QueueProviderType));
+            Assert.That("name", Is.EqualTo(config.Name));
         }
 
         [Test]

@@ -2,9 +2,8 @@
 
 namespace Beztek.Facade.Queue.Tests
 {
-    using System;
-    using System.IO;
     using System.Collections.Generic;
+    using System.IO;
     using NUnit.Framework;
     using Queue;
 
@@ -30,7 +29,7 @@ namespace Beztek.Facade.Queue.Tests
             messageList.Add(new Message("Test message2", "abc"));
             List<bool> results = messageProcessor.Process(messageList).Result;
             Assert.That(2, Is.EqualTo(messageProcessor.GetProcessCount()));
-            Assert.That(1,Is.EqualTo(messageProcessor.GetProcessListCount()));
+            Assert.That(1, Is.EqualTo(messageProcessor.GetProcessListCount()));
             Assert.That(true, Is.EqualTo(results[0]));
             Assert.That(true, Is.EqualTo(results[1]));
         }

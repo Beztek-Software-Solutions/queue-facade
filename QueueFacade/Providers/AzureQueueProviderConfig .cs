@@ -44,7 +44,7 @@ namespace Beztek.Facade.Queue.Providers
 
         public string Name { get; set; }
 
-        public int VisibilityTimeoutMilliseconds { get; set;}
+        public int VisibilityTimeoutMilliseconds { get; set; }
 
         public string Endpoint { get; set; }
 

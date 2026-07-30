@@ -188,7 +188,7 @@ namespace Beztek.Facade.Queue.Providers
 
         public async Task<long> GetApproximateQueueLength(bool isHighPriorityQueue)
         {
-            return (long) GetQueueClient(isHighPriorityQueue).GetProperties().Value.ApproximateMessagesCount;
+            return (long)GetQueueClient(isHighPriorityQueue).GetProperties().Value.ApproximateMessagesCount;
         }
 
         // Internal

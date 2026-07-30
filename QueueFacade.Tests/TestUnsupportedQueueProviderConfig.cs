@@ -6,7 +6,7 @@ namespace Beztek.Facade.Queue.Tests
 
     public class TestUnsupportedQueueProviderConfig : IQueueProviderConfig
     {
-        public TestUnsupportedQueueProviderConfig(string name, int visibilityTimeoutMilliseconds=30000)
+        public TestUnsupportedQueueProviderConfig(string name, int visibilityTimeoutMilliseconds = 30000)
         {
             this.Name = name;
             this.VisibilityTimeoutMilliseconds = visibilityTimeoutMilliseconds;
@@ -16,6 +16,6 @@ namespace Beztek.Facade.Queue.Tests
 
         public string Name { get; }
 
-        public int VisibilityTimeoutMilliseconds { get;}
+        public int VisibilityTimeoutMilliseconds { get; }
     }
 }

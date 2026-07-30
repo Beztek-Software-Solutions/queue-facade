@@ -21,6 +21,6 @@ namespace Beztek.Facade.Queue
         public QueueProviderType QueueProviderType { get; } = QueueProviderType.LocalMemory;
 
         public string Name { get; set; }
-        public int  VisibilityTimeoutMilliseconds { get; set; }
+        public int VisibilityTimeoutMilliseconds { get; set; }
     }
 }

@@ -6,7 +6,13 @@ namespace Beztek.Facade.Queue.Providers
 
     public class AzureQueueProviderConfig : IQueueProviderConfig
     {
-        public AzureQueueProviderConfig(string name, string endpoint, string highPriorityQueue, string lowPriorityQueue = null, int visibilityTimeoutMilliseconds = 30000)
+        public AzureQueueProviderConfig(
+            string name,
+            string endpoint,
+            string highPriorityQueue,
+            string lowPriorityQueue = null,
+            int visibilityTimeoutMilliseconds = 30000,
+            string unprocessedQueue = null)
         {
             // Name validation
             if (string.IsNullOrEmpty(name))
@@ -26,17 +32,28 @@ namespace Beztek.Facade.Queue.Providers
                 throw new ArgumentException("No queue name provided");
             }
 
-            AzureQueueNameValidator.ValidateQueueName(highPriorityQueue);
+            AzureQueueNameValidator.ValidateQueueName(QueuePartition.ForValidation(highPriorityQueue));
 
             if (lowPriorityQueue != null)
             {
-                AzureQueueNameValidator.ValidateQueueName(lowPriorityQueue);
+                AzureQueueNameValidator.ValidateQueueName(QueuePartition.ForValidation(lowPriorityQueue));
+            }
+
+            string poison = string.IsNullOrWhiteSpace(unprocessedQueue)
+                ? Constants.DefaultUnprocessedQueueName(highPriorityQueue, QueueNameValidator.MaxLength)
+                : unprocessedQueue.Trim();
+            AzureQueueNameValidator.ValidateQueueName(QueuePartition.ForValidation(poison));
+            if (string.Equals(poison, highPriorityQueue, StringComparison.Ordinal)
+                || string.Equals(poison, lowPriorityQueue, StringComparison.Ordinal))
+            {
+                throw new ArgumentException("Unprocessed (poison) queue name must differ from high/low priority queues");
             }
 
             this.Name = name;
             this.Endpoint = endpoint;
             this.HighPriorityQueue = highPriorityQueue;
             this.LowPriorityQueue = lowPriorityQueue;
+            this.UnprocessedQueue = poison;
             this.VisibilityTimeoutMilliseconds = visibilityTimeoutMilliseconds;
         }
 
@@ -51,6 +68,9 @@ namespace Beztek.Facade.Queue.Providers
         public string HighPriorityQueue { get; set; }
 
         public string LowPriorityQueue { get; }
+
+        /// <summary>Poison queue name. Default: <c>{highPriorityQueue}-unprocessed</c>.</summary>
+        public string UnprocessedQueue { get; }
 
         internal AzureStorageClientCreator AzureStorageClientCreator { get; set; } = new AzureStorageClientCreator();
     }

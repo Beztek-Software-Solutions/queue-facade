@@ -6,10 +6,9 @@ namespace Beztek.Facade.Queue.Tests
     using System.Globalization;
     using NUnit.Framework;
     using Queue;
-    using Queue.Providers;
 
     /// <summary>
-    /// Test cases for Queue Name Validations.
+    /// Portable queue name rules (Azure ∩ SQS common denominator).
     /// </summary>
     [TestFixture]
     public class QueueNameValidatorTests
@@ -17,39 +16,38 @@ namespace Beztek.Facade.Queue.Tests
         [Test]
         public void Given_Short_QueueName_Throws_ValidationException()
         {
-            Assert.Throws<ArgumentException>(() => AzureQueueNameValidator.ValidateQueueName("t"));
+            Assert.Throws<ArgumentException>(() => QueueNameValidator.ValidateQueueName("t"));
         }
 
         [Test]
         public void Given_Long_QueueName_Throws_ValidationException()
         {
             Assert.Throws<ArgumentException>(() =>
-                AzureQueueNameValidator.ValidateQueueName("sdkhfkjsdhfkshdfkshdfksdasjdlkasjdlkasjdlasdasdasdasjdlasdhfksdhfksdhfs"));
+                QueueNameValidator.ValidateQueueName("sdkhfkjsdhfkshdfkshdfksdasjdlkasjdlkasjdlasdasdasdasjdlasdhfksdhfksdhfs"));
         }
 
         [Test]
         public void Given_Whitespace_QueueName_Throws_ValidationException()
         {
-            Assert.Throws<ArgumentException>(() => AzureQueueNameValidator.ValidateQueueName(" "));
+            Assert.Throws<ArgumentException>(() => QueueNameValidator.ValidateQueueName(" "));
         }
 
         [Test]
         public void Given_InvalidCharacters_QueueName_Throws_ValidationException()
         {
-            Assert.Throws<ArgumentException>(() => AzureQueueNameValidator.ValidateQueueName("@#(_@$"));
+            Assert.Throws<ArgumentException>(() => QueueNameValidator.ValidateQueueName("@#(_@$"));
 
             Assert.Throws<ArgumentException>(() =>
-                AzureQueueNameValidator.ValidateQueueName("test name"));
+                QueueNameValidator.ValidateQueueName("test name"));
 
             Assert.Throws<ArgumentException>(() =>
-                AzureQueueNameValidator.ValidateQueueName("test/name"));
+                QueueNameValidator.ValidateQueueName("test/name"));
 
             Assert.Throws<ArgumentException>(() =>
-                AzureQueueNameValidator.ValidateQueueName("test_name"));
+                QueueNameValidator.ValidateQueueName("test_name"));
 
             Assert.Throws<ArgumentException>(() =>
-                AzureQueueNameValidator.ValidateQueueName("CAPITAL-NOT-ALLOWED"));
-
+                QueueNameValidator.ValidateQueueName("CAPITAL-NOT-ALLOWED"));
         }
 
         [Test]
@@ -57,7 +55,7 @@ namespace Beztek.Facade.Queue.Tests
         {
             string reservedQueueName = "test";
 
-            string message = Assert.Throws<ArgumentException>(() => AzureQueueNameValidator.ValidateQueueName(reservedQueueName)).Message;
+            string message = Assert.Throws<ArgumentException>(() => QueueNameValidator.ValidateQueueName(reservedQueueName)).Message;
 
             Assert.That(message, Is.EqualTo(string.Format(CultureInfo.InvariantCulture, Constants.InvalidResourceReservedName, reservedQueueName)));
         }
@@ -65,10 +63,10 @@ namespace Beztek.Facade.Queue.Tests
         [Test]
         public void Given_Valid_QueueName_Throws_No_Exception()
         {
-            AzureQueueNameValidator.ValidateQueueName("testname");
-            AzureQueueNameValidator.ValidateQueueName("test-valid-queue");
-            AzureQueueNameValidator.ValidateQueueName("test-queue-1");
-            AzureQueueNameValidator.ValidateQueueName("997bafac-245a-4217-85ec-fc8cc93ecbbc");
+            QueueNameValidator.ValidateQueueName("testname");
+            QueueNameValidator.ValidateQueueName("test-valid-queue");
+            QueueNameValidator.ValidateQueueName("test-queue-1");
+            QueueNameValidator.ValidateQueueName("997bafac-245a-4217-85ec-fc8cc93ecbbc");
         }
     }
 }

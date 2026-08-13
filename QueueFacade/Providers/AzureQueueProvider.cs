@@ -55,9 +55,9 @@ namespace Beztek.Facade.Queue.Providers
             this._queueClients.Add(queueClient);
             this.MaxMessageSize = _queueClients[0].MessageMaxBytes;
 
-            // Unprocessed Message QUeue
-            logger?.LogDebug($"UnprocessedMessageQueue: {Constants.UnprocessedMessageQueue}");
-            unprocessedQueueClient = this.CreateQueueClient(Constants.UnprocessedMessageQueue, azureQueueProviderConfig.Endpoint);
+            // Unprocessed Message Queue (per high-priority queue name — not a global account queue)
+            logger?.LogDebug($"UnprocessedMessageQueue: {azureQueueProviderConfig.UnprocessedQueue}");
+            unprocessedQueueClient = this.CreateQueueClient(azureQueueProviderConfig.UnprocessedQueue, azureQueueProviderConfig.Endpoint);
 
             // Low Priority Queue
             if (!string.IsNullOrEmpty(azureQueueProviderConfig.LowPriorityQueue))

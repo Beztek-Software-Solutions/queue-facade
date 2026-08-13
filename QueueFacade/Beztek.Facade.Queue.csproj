@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <id>Beztek.Facade.Queue</id>
-    <version>1.0.8</version>
+    <version>1.0.9</version>
     <authors>Peter Thomas</authors>
     <owners>Beztek Software Solutions</owners>
     <projectUrl>https://github.com/Beztek-Software-Solutions/queue-facade</projectUrl>
@@ -17,6 +17,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AWSSDK.SQS" Version="4.0.1.2" />
     <PackageReference Include="Azure.Storage.Queues" Version="12.27.1" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.10" />
   </ItemGroup>

@@ -19,6 +19,7 @@ namespace Beztek.Facade.Queue.Tests
             Assert.That("endpoint", Is.EqualTo(config.Endpoint));
             Assert.That("high-priority-queue", Is.EqualTo(config.HighPriorityQueue));
             Assert.That("low-prority-queue", Is.EqualTo(config.LowPriorityQueue));
+            Assert.That(config.UnprocessedQueue, Is.EqualTo("high-priority-queue-unprocessed"));
         }
 
         [Test]
@@ -30,6 +31,15 @@ namespace Beztek.Facade.Queue.Tests
             Assert.That("endpoint", Is.EqualTo(config.Endpoint));
             Assert.That("high-priority-queue", Is.EqualTo(config.HighPriorityQueue));
             Assert.That(config.LowPriorityQueue, Is.Null);
+            Assert.That(config.UnprocessedQueue, Is.EqualTo("high-priority-queue-unprocessed"));
+        }
+
+        [Test]
+        public void ConstructorTest_ExplicitUnprocessedQueue()
+        {
+            AzureQueueProviderConfig config = new AzureQueueProviderConfig(
+                "name", "endpoint", "high-priority-queue", unprocessedQueue: "app-a-poison");
+            Assert.That(config.UnprocessedQueue, Is.EqualTo("app-a-poison"));
         }
 
         [Test]

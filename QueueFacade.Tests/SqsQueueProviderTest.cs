@@ -104,7 +104,7 @@ namespace Beztek.Facade.Queue.Tests
         }
 
         [Test]
-        public void GetMessagesTest_FirstDeliveryOnly()
+        public void GetMessagesTest_IncludesRetryDeliveries()
         {
             mockSqs
                 .Setup(m => m.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
@@ -130,8 +130,10 @@ namespace Beztek.Facade.Queue.Tests
                 });
 
             IList<object> result = queueProvider.GetMessages(10, true);
-            Assert.That(result.Count, Is.EqualTo(1));
+            Assert.That(result.Count, Is.EqualTo(2));
             Assert.That(queueProvider.GetMessageBody(result[0]), Is.EqualTo("first"));
+            Assert.That(queueProvider.GetMessageBody(result[1]), Is.EqualTo("retry"));
+            Assert.That(queueProvider.GetReceiveCount(result[1]), Is.EqualTo(3));
         }
 
         [Test]

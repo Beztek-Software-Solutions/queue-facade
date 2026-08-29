@@ -137,29 +137,77 @@ namespace Beztek.Facade.Queue.Providers
             }).GetAwaiter().GetResult();
 
             var messages = response.Messages ?? new List<Message>();
-            try
-            {
-                // Mirror Azure provider: only first delivery (ApproximateReceiveCount == 1).
-                messages = messages
-                    .Where(m =>
-                    {
-                        if (m.Attributes == null
-                            || !m.Attributes.TryGetValue("ApproximateReceiveCount", out var countStr)
-                            || !int.TryParse(countStr, out var count))
-                        {
-                            return true;
-                        }
-
-                        return count == 1;
-                    })
-                    .ToList();
-            }
-            catch (Exception e)
-            {
-                logger?.LogError(e, e.Message);
-            }
-
             return messages.Cast<object>().ToList();
+        }
+
+        public int GetReceiveCount(object messageHook)
+        {
+            var message = messageHook as Message;
+            if (message?.Attributes != null
+                && message.Attributes.TryGetValue("ApproximateReceiveCount", out string countStr)
+                && int.TryParse(countStr, out int count))
+            {
+                return Math.Max(1, count);
+            }
+
+            return 1;
+        }
+
+        public IList<object> PeekUnprocessedMessages(int maxMessagesToRetrieve)
+        {
+            // SQS has no true peek; receive with visibility for inspection (same as ReceiveUnprocessedMessages).
+            return ReceiveUnprocessedMessages(maxMessagesToRetrieve);
+        }
+
+        public IList<object> ReceiveUnprocessedMessages(int maxMessagesToRetrieve)
+        {
+            CreateIfNotExists();
+            int take = Math.Min(Math.Max(maxMessagesToRetrieve, 1), MaxMessageCountPerPoll);
+            int visibilitySeconds = Math.Max(1, (VisibilityTimeoutMilliseconds + 999) / 1000);
+            var response = sqs.ReceiveMessageAsync(new ReceiveMessageRequest
+            {
+                QueueUrl = unprocessedQueueUrl,
+                MaxNumberOfMessages = take,
+                VisibilityTimeout = visibilitySeconds,
+                MessageAttributeNames = new List<string> { "All" },
+            }).GetAwaiter().GetResult();
+
+            return (response.Messages ?? new List<Message>()).Cast<object>().ToList();
+        }
+
+        public async Task DeleteUnprocessedMessageAsync(object messageHook)
+        {
+            CreateIfNotExists();
+            var message = messageHook as Message;
+            if (message == null || string.IsNullOrEmpty(message.ReceiptHandle))
+            {
+                return;
+            }
+
+            await sqs.DeleteMessageAsync(new DeleteMessageRequest
+            {
+                QueueUrl = unprocessedQueueUrl,
+                ReceiptHandle = message.ReceiptHandle,
+            }).ConfigureAwait(false);
+        }
+
+        public async Task<long> GetApproximateUnprocessedQueueLength()
+        {
+            CreateIfNotExists();
+            var response = await sqs.GetQueueAttributesAsync(new GetQueueAttributesRequest
+            {
+                QueueUrl = unprocessedQueueUrl,
+                AttributeNames = new List<string> { "ApproximateNumberOfMessages" },
+            }).ConfigureAwait(false);
+
+            if (response.Attributes != null
+                && response.Attributes.TryGetValue("ApproximateNumberOfMessages", out string countStr)
+                && long.TryParse(countStr, out long count))
+            {
+                return count;
+            }
+
+            return 0;
         }
 
         public string GetMessageBody(object messageHook)

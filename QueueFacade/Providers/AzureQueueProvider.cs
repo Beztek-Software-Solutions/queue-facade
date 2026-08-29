@@ -148,28 +148,65 @@ namespace Beztek.Facade.Queue.Providers
 
             QueueMessage[] queueMessages = queueClient.ReceiveMessages(maxMessagesToRetrieve, TimeSpan.FromMilliseconds(VisibilityTimeoutMilliseconds));
 
-            try
-            {
-                queueMessages = queueMessages.Where(q => q.DequeueCount == 1).ToArray();
-            }
-            catch (Exception e)
-            {
-                this.logger?.LogError(e, e.Message);
-            }
-
             if (queueMessages != null)
                 messageHooks.AddRange(queueMessages);
 
             return messageHooks;
         }
 
+        public int GetReceiveCount(object messageHook)
+        {
+            QueueMessage queueMessage = messageHook as QueueMessage;
+            return queueMessage == null ? 1 : (int)Math.Max(1, queueMessage.DequeueCount);
+        }
+
+        public IList<object> PeekUnprocessedMessages(int maxMessagesToRetrieve)
+        {
+            unprocessedQueueClient.CreateIfNotExists();
+            int take = Math.Max(1, Math.Min(maxMessagesToRetrieve, MaxMessageCountPerPoll));
+            PeekedMessage[] peeked = unprocessedQueueClient.PeekMessages(take);
+            return peeked == null ? new List<object>() : peeked.Cast<object>().ToList();
+        }
+
+        public IList<object> ReceiveUnprocessedMessages(int maxMessagesToRetrieve)
+        {
+            unprocessedQueueClient.CreateIfNotExists();
+            int take = Math.Max(1, Math.Min(maxMessagesToRetrieve, MaxMessageCountPerPoll));
+            QueueMessage[] messages = unprocessedQueueClient.ReceiveMessages(take, TimeSpan.FromMilliseconds(VisibilityTimeoutMilliseconds));
+            return messages == null ? new List<object>() : messages.Cast<object>().ToList();
+        }
+
+        public async Task DeleteUnprocessedMessageAsync(object messageHook)
+        {
+            unprocessedQueueClient.CreateIfNotExists();
+            if (messageHook is QueueMessage queueMessage)
+            {
+                await unprocessedQueueClient.DeleteMessageAsync(queueMessage.MessageId, queueMessage.PopReceipt).ConfigureAwait(false);
+            }
+        }
+
+        public async Task<long> GetApproximateUnprocessedQueueLength()
+        {
+            unprocessedQueueClient.CreateIfNotExists();
+            return (long)unprocessedQueueClient.GetProperties().Value.ApproximateMessagesCount;
+        }
+
         /// <summary>
-        /// Gets the message body from the messageHook (i.e. the QueueMessage).
+        /// Gets the message body from the messageHook (i.e. the QueueMessage or PeekedMessage).
         /// </summary>
         public string GetMessageBody(Object messageHook)
         {
-            QueueMessage queueMessage = (QueueMessage)messageHook;
-            return queueMessage.Body.ToString();
+            if (messageHook is QueueMessage queueMessage)
+            {
+                return queueMessage.Body.ToString();
+            }
+
+            if (messageHook is PeekedMessage peekedMessage)
+            {
+                return peekedMessage.Body.ToString();
+            }
+
+            return messageHook?.ToString();
         }
 
         /// <summary>

@@ -62,6 +62,21 @@ namespace Beztek.Facade.Queue.Tests
         }
 
         [Test]
+        public void ProcessSingleMessage_ReturnsFalse_WhenProcessorReturnsFalse()
+        {
+            ThrowingMessageProcessor callback = new ThrowingMessageProcessor(returnFalseInsteadOfThrow: true);
+            _ = handler.AddProcessor(typeof(string), callback);
+
+            Message message = new Message {
+                ActivityId = "id",
+                RawMessage = "message",
+                MessageType = "System.String"
+            };
+            bool result = handler.Process(message).Result;
+            Assert.That(result, Is.False);
+        }
+
+        [Test]
         public void ProcessListTest()
         {
             TestMessageProcessor callback = new TestMessageProcessor();

@@ -31,6 +31,12 @@ namespace Beztek.Facade.Queue
         public object RawMessage { get; set; }
 
         /// <summary>
+        /// Delivery attempt count for this message (1 on first receive). Providers expose native
+        /// dequeue/receive counts; LocalMemory tracks attempts across visibility timeouts.
+        /// </summary>
+        public int ProcessingAttempt { get; set; } = 1;
+
+        /// <summary>
         /// Activity ID for distributed tracing.
         /// </summary>
         public string ActivityId { get; set; }

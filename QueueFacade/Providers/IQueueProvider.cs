@@ -69,6 +69,32 @@ namespace Beztek.Facade.Queue.Providers
         IList<object> GetMessages(int maxMessagesToRetrieve, bool isHighPriorityQueue);
 
         /// <summary>
+        /// Native 1-based receive/dequeue count for a message hook from <see cref="GetMessages"/>.
+        /// </summary>
+        int GetReceiveCount(object messageHook);
+
+        /// <summary>
+        /// Peek (non-destructive where supported) messages from the unprocessed/poison queue for troubleshooting.
+        /// </summary>
+        IList<object> PeekUnprocessedMessages(int maxMessagesToRetrieve);
+
+        /// <summary>
+        /// Receive messages from the unprocessed/poison queue (locks them with visibility timeout).
+        /// Used when re-queuing to the primary queue.
+        /// </summary>
+        IList<object> ReceiveUnprocessedMessages(int maxMessagesToRetrieve);
+
+        /// <summary>
+        /// Deletes a message previously returned by <see cref="ReceiveUnprocessedMessages"/>.
+        /// </summary>
+        Task DeleteUnprocessedMessageAsync(object messageHook);
+
+        /// <summary>
+        /// Approximate depth of the unprocessed/poison queue.
+        /// </summary>
+        Task<long> GetApproximateUnprocessedQueueLength();
+
+        /// <summary>
         /// Query the current length of the queue
         /// <paramref name="isHighPriorityQueue"></paramref>
         /// </summary>

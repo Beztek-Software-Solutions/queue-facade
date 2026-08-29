@@ -245,9 +245,10 @@ namespace Beztek.Facade.Queue
         {
             queueProvider.CreateIfNotExists();
 
-            Message currMessage = new Message(message, activityId);
-
-            string messageStr = currMessage.ToString();
+            // Avoid double-wrapping when the processor already handed us a Message envelope.
+            string messageStr = message is Message existing
+                ? existing.ToString()
+                : new Message(message, activityId).ToString();
 
             if (messageStr.Length > queueProvider.MaxMessageSize)
             {
@@ -270,15 +271,15 @@ namespace Beztek.Facade.Queue
         }
 
         /// <inheritdoc />
-        public virtual async Task DequeueAndProcess(int maxMessageRate, int maxAsynchronousProcesses, IMessageProcessor processor, CancellationToken cancellationToken, int batchSize = 1, int pollIntervalInMilliseconds = OneThousand)
+        public virtual async Task DequeueAndProcess(int maxMessageRate, int maxAsynchronousProcesses, IMessageProcessor processor, CancellationToken cancellationToken, int batchSize = 1, int pollIntervalInMilliseconds = OneThousand, int maxProcessingAttempts = QueueDequeueConfig.DefaultMaxProcessingAttempts)
         {
-            await this.DequeueAndProcess(maxMessageRate, maxAsynchronousProcesses, IQueueProcessorHandler.Default().AddProcessor(typeof(string), processor), cancellationToken, batchSize, pollIntervalInMilliseconds).ConfigureAwait(false);
+            await this.DequeueAndProcess(maxMessageRate, maxAsynchronousProcesses, IQueueProcessorHandler.Default().AddProcessor(typeof(string), processor), cancellationToken, batchSize, pollIntervalInMilliseconds, maxProcessingAttempts).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
-        public virtual async Task DequeueAndProcess(int maxMessageRate, int maxAsynchronousProcesses, IQueueProcessorHandler handler, CancellationToken cancellationToken, int batchSize = 1, int pollIntervalInMilliseconds = OneThousand)
+        public virtual async Task DequeueAndProcess(int maxMessageRate, int maxAsynchronousProcesses, IQueueProcessorHandler handler, CancellationToken cancellationToken, int batchSize = 1, int pollIntervalInMilliseconds = OneThousand, int maxProcessingAttempts = QueueDequeueConfig.DefaultMaxProcessingAttempts)
         {
-            await DequeueAndProcess(new QueueDequeueConfig(maxMessageRate, maxAsynchronousProcesses, handler, cancellationToken, batchSize, pollIntervalInMilliseconds)).ConfigureAwait(false);
+            await DequeueAndProcess(new QueueDequeueConfig(maxMessageRate, maxAsynchronousProcesses, handler, cancellationToken, batchSize, pollIntervalInMilliseconds, maxProcessingAttempts)).ConfigureAwait(false);
         }
 
         public virtual async Task DequeueAndProcess(QueueDequeueConfig queueDequeueConfig)
@@ -445,6 +446,85 @@ namespace Beztek.Facade.Queue
             return await queueProvider.GetApproximateQueueLength(isHighPriorityQueue);
         }
 
+        /// <inheritdoc />
+        public virtual async Task<long> GetApproximateUnprocessedQueueLength()
+        {
+            queueProvider.CreateIfNotExists();
+            return await queueProvider.GetApproximateUnprocessedQueueLength().ConfigureAwait(false);
+        }
+
+        /// <inheritdoc />
+        public virtual Task<IReadOnlyList<Message>> PeekUnprocessedMessagesAsync(int maxMessages = 32)
+        {
+            queueProvider.CreateIfNotExists();
+            IList<object> hooks = queueProvider.PeekUnprocessedMessages(Math.Max(1, maxMessages));
+            List<Message> results = new List<Message>();
+            foreach (object hook in hooks)
+            {
+                string body = queueProvider.GetMessageBody(hook);
+                if (string.IsNullOrEmpty(body))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    results.Add(JsonSerializer.Deserialize<Message>(body));
+                }
+                catch (Exception ex)
+                {
+                    this.logger?.LogError(ex, "PeekUnprocessedMessagesAsync failed to deserialize poison payload");
+                }
+            }
+
+            return Task.FromResult<IReadOnlyList<Message>>(results);
+        }
+
+        /// <inheritdoc />
+        public virtual async Task<int> RequeueUnprocessedMessagesAsync(int maxMessages = 32, bool useHighPriorityQueue = true)
+        {
+            queueProvider.CreateIfNotExists();
+            IList<object> hooks = queueProvider.ReceiveUnprocessedMessages(Math.Max(1, maxMessages));
+            int requeued = 0;
+
+            foreach (object hook in hooks)
+            {
+                string body = queueProvider.GetMessageBody(hook);
+                if (string.IsNullOrEmpty(body))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    Message message = JsonSerializer.Deserialize<Message>(body);
+                    if (message != null)
+                    {
+                        // Fresh primary-queue delivery; receive-count starts over.
+                        message.ProcessingAttempt = 0;
+                        body = message.ToString();
+                    }
+
+                    bool sent = await queueProvider.SendMessageAsync(body, useHighPriorityQueue).ConfigureAwait(false);
+                    if (sent)
+                    {
+                        await queueProvider.DeleteUnprocessedMessageAsync(hook).ConfigureAwait(false);
+                        requeued++;
+                    }
+                    else
+                    {
+                        this.logger?.LogWarning("RequeueUnprocessedMessagesAsync: send to primary queue failed; leaving message on poison queue");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this.logger?.LogError(ex, "RequeueUnprocessedMessagesAsync failed for one poison message");
+                }
+            }
+
+            return requeued;
+        }
+
         // Internal
 
         /// <summary>
@@ -454,6 +534,8 @@ namespace Beztek.Facade.Queue
         {
             string activityId = null;
             Activity currentActivity = new Activity("Queue-ProcessMessage");
+            Message message = null;
+            int attempt = 1;
 
             try
             {
@@ -465,20 +547,23 @@ namespace Beztek.Facade.Queue
                     return;
                 }
 
-                Message message = JsonSerializer.Deserialize<Message>(messageStr);
+                message = JsonSerializer.Deserialize<Message>(messageStr);
                 activityId = message?.ActivityId;
+                attempt = Math.Max(1, queueProvider.GetReceiveCount(messageHook));
+                if (message != null)
+                {
+                    message.ProcessingAttempt = attempt;
+                }
 
                 if (!string.IsNullOrWhiteSpace(activityId))
                 {
                     currentActivity.SetParentId(activityId);
                 }
 
-                // Placeholder for distributed tracing
-                this.logger?.LogDebug($"Processing message for activityId: {activityId}");
+                this.logger?.LogDebug($"Processing message for activityId: {activityId}, attempt: {attempt}/{this.QueueDequeueConfig.MaxProcessingAttempts}");
 
                 Boolean processed = false;
 
-                // Process the message and keep track of the active process count
                 Interlocked.Increment(ref currActiveProcesses);
                 try
                 {
@@ -491,9 +576,8 @@ namespace Beztek.Facade.Queue
 
                 if (!processed)
                 {
-                    bool sentFlag = this.EnqueueUnprocessedMessages(message, activityId).Result;
-
-                    this.logger?.LogWarning($"Message is not processed correctly and moved to the unprocessedmessagequeue with status = {sentFlag}. Potential loss of message detected. activityId: {activityId}");
+                    bool sentFlag = await this.EnqueueUnprocessedMessages(message, activityId).ConfigureAwait(false);
+                    this.logger?.LogWarning($"Message processing returned false; moved to poison queue (sent={sentFlag}). activityId: {activityId}");
                 }
 
                 await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
@@ -508,13 +592,29 @@ namespace Beztek.Facade.Queue
                 catch (Exception e)
                 {
                     this.logger?.LogError(e, e.Message);
-                    // If we get exception during delete, we do not want to throw it away here otherwise it will cause MessageProcessor thread to get killed.
                 }
             }
             catch (Exception ex)
             {
-                this.logger?.LogError(ex, $"Queue ProcessMessage Exception");
-                //If we throw exception here the Message processor running in thread will crash and application will stop receiving messages from queue.
+                this.logger?.LogError(ex, $"Queue ProcessMessage Exception (attempt {attempt}/{this.QueueDequeueConfig?.MaxProcessingAttempts})");
+                if (attempt >= (this.QueueDequeueConfig?.MaxProcessingAttempts ?? QueueDequeueConfig.DefaultMaxProcessingAttempts))
+                {
+                    try
+                    {
+                        if (message != null)
+                        {
+                            bool sentFlag = await this.EnqueueUnprocessedMessages(message, activityId).ConfigureAwait(false);
+                            this.logger?.LogWarning($"Max processing attempts reached; moved to poison queue (sent={sentFlag}). activityId: {activityId}");
+                        }
+
+                        await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
+                    }
+                    catch (Exception poisonEx)
+                    {
+                        this.logger?.LogError(poisonEx, "Failed to move message to poison queue after max attempts");
+                    }
+                }
+                // else: leave message — visibility timeout (~30s) will make it reappear and increment receive count
             }
             finally
             {
@@ -529,6 +629,7 @@ namespace Beztek.Facade.Queue
         {
             bool hasError = false;
             List<Message> messageList = new List<Message>();
+            List<int> attempts = new List<int>();
             try
             {
                 foreach (object messageHook in messageHookList)
@@ -545,16 +646,20 @@ namespace Beztek.Facade.Queue
                         }
 
                         Message message = JsonSerializer.Deserialize<Message>(messageStr);
-                        string activityId = message?.ActivityId;
+                        int attempt = Math.Max(1, queueProvider.GetReceiveCount(messageHook));
+                        if (message != null)
+                        {
+                            message.ProcessingAttempt = attempt;
+                        }
+
+                        attempts.Add(attempt);
                         messageList.Add(message);
 
-                        // Placeholder for distributed tracing
-                        this.logger?.LogDebug($"Processing message for activityId: {activityId}");
+                        this.logger?.LogDebug($"Processing message for activityId: {message?.ActivityId}, attempt: {attempt}/{this.QueueDequeueConfig.MaxProcessingAttempts}");
                     }
                     catch (Exception e)
                     {
                         this.logger?.LogError(e, e.Message);
-                        // If we get exception during delete, we do not want to throw it here but send approprate response
                         hasError = true;
                         break;
                     }
@@ -563,7 +668,6 @@ namespace Beztek.Facade.Queue
             catch (Exception e)
             {
                 this.logger?.LogError(e, e.Message);
-                // If we get exception during delete, we do not want to throw it away here but send approprate response
                 hasError = true;
             }
 
@@ -573,8 +677,6 @@ namespace Beztek.Facade.Queue
                 List<bool> processed;
                 try
                 {
-
-                    // Process the message and keep track of the active process count
                     Interlocked.Increment(ref currActiveProcesses);
                     try
                     {
@@ -585,7 +687,6 @@ namespace Beztek.Facade.Queue
                         Interlocked.Decrement(ref currActiveProcesses);
                     }
 
-                    // Iterate through individual messages to check status
                     for (int index = 0; index < processed.Count; index++)
                     {
                         Message unwrappedMessage = messageList[index];
@@ -596,8 +697,8 @@ namespace Beztek.Facade.Queue
                         {
                             if (!success)
                             {
-                                bool sentFlag = this.EnqueueUnprocessedMessages(unwrappedMessage).Result;
-                                this.logger?.LogWarning($"Message is not processed correctly and moved to the unprocessedmessagequeue with status = {sentFlag}. Potential loss of message detected. activityId: {unwrappedMessage.ActivityId}");
+                                bool sentFlag = await this.EnqueueUnprocessedMessages(unwrappedMessage).ConfigureAwait(false);
+                                this.logger?.LogWarning($"Message processing returned false; moved to poison queue (sent={sentFlag}). activityId: {unwrappedMessage.ActivityId}");
                             }
 
                             await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
@@ -612,13 +713,25 @@ namespace Beztek.Facade.Queue
                             catch (Exception e)
                             {
                                 this.logger?.LogError(e, e.Message);
-                                // Do not rethrow to stay in the loop
                             }
                         }
                         catch (Exception ex)
                         {
-                            this.logger?.LogError(ex, $"Queue ProcessMessage Exception");
-                            // Do not rethrow to stay in the loop
+                            this.logger?.LogError(ex, $"Queue ProcessMessageList per-message Exception");
+                            int attempt = attempts[index];
+                            if (attempt >= this.QueueDequeueConfig.MaxProcessingAttempts)
+                            {
+                                try
+                                {
+                                    bool sentFlag = await this.EnqueueUnprocessedMessages(unwrappedMessage).ConfigureAwait(false);
+                                    this.logger?.LogWarning($"Max processing attempts reached; moved to poison queue (sent={sentFlag}). activityId: {unwrappedMessage.ActivityId}");
+                                    await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
+                                }
+                                catch (Exception poisonEx)
+                                {
+                                    this.logger?.LogError(poisonEx, "Failed to move message to poison queue after max attempts");
+                                }
+                            }
                         }
                     }
 
@@ -627,7 +740,25 @@ namespace Beztek.Facade.Queue
                 catch (Exception ex)
                 {
                     this.logger?.LogError(ex, $"Queue ProcessMessageList Exception");
-                    //If we throw exception here the Message processor running in thread will crash and application will stop receiving messages from queue.
+                    int maxAttempts = this.QueueDequeueConfig?.MaxProcessingAttempts ?? QueueDequeueConfig.DefaultMaxProcessingAttempts;
+                    for (int index = 0; index < messageList.Count; index++)
+                    {
+                        if (attempts[index] < maxAttempts)
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            bool sentFlag = await this.EnqueueUnprocessedMessages(messageList[index]).ConfigureAwait(false);
+                            this.logger?.LogWarning($"Max processing attempts reached after batch failure; moved to poison queue (sent={sentFlag}). activityId: {messageList[index]?.ActivityId}");
+                            await queueProvider.DeleteMessageAsync(messageHookList[index], isHighPriorityQueue).ConfigureAwait(false);
+                        }
+                        catch (Exception poisonEx)
+                        {
+                            this.logger?.LogError(poisonEx, "Failed to move message to poison queue after max attempts");
+                        }
+                    }
                 }
             }
         }

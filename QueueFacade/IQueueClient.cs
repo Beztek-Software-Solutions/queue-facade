@@ -22,7 +22,7 @@ namespace Beztek.Facade.Queue
         /// <param name="maxMessageRate">The number of messages per second.</param>
         /// <param name="maxAsynchronousProcesses">The max allowed asynchronous processes being processed</param>
         /// <param name="processor"><seealso cref="IMessageProcessor"/> to process messages.</param>
-        public Task DequeueAndProcess(int maxMessageRate, int maxAsynchronousProcesses, IMessageProcessor processor, CancellationToken cancellationToken, int batchSize = 1, int pollIntervalInMilliseconds = 1000);
+        public Task DequeueAndProcess(int maxMessageRate, int maxAsynchronousProcesses, IMessageProcessor processor, CancellationToken cancellationToken, int batchSize = 1, int pollIntervalInMilliseconds = 1000, int maxProcessingAttempts = QueueDequeueConfig.DefaultMaxProcessingAttempts);
 
         /// <summary>
         /// Receive messages from queue and pass to processors in the <see cref="handler"/>
@@ -30,7 +30,8 @@ namespace Beztek.Facade.Queue
         /// <param name="maxMessageRate">The number of messages per second.</param>
         /// <param name="maxAsynchronousProcesses">The max allowed asynchronous processes being processed</param>
         /// <param name="handler">Handler to allow processors to process messages.</param>
-        public Task DequeueAndProcess(int maxMessageRate, int maxAsynchronousProcesses, IQueueProcessorHandler handler, CancellationToken cancellationToken, int batchSize = 1, int pollIntervalInMilliseconds = 1000);
+        /// <param name="maxProcessingAttempts">After this many receives, still-failing messages move to the poison queue.</param>
+        public Task DequeueAndProcess(int maxMessageRate, int maxAsynchronousProcesses, IQueueProcessorHandler handler, CancellationToken cancellationToken, int batchSize = 1, int pollIntervalInMilliseconds = 1000, int maxProcessingAttempts = QueueDequeueConfig.DefaultMaxProcessingAttempts);
 
         /// <summary>
         /// Adds a message of type <see cref="T"/> to queue.
@@ -75,5 +76,23 @@ namespace Beztek.Facade.Queue
         /// <paramref name="isHighPriorityQueue"></paramref>
         /// </summary>
         public Task<long> GetApproximateQueueLength(bool isHighPriorityQueue);
+
+        /// <summary>
+        /// Approximate depth of the unprocessed/poison queue.
+        /// </summary>
+        public Task<long> GetApproximateUnprocessedQueueLength();
+
+        /// <summary>
+        /// Peek messages on the unprocessed/poison queue for troubleshooting (non-destructive on Azure;
+        /// SQS receives with visibility timeout).
+        /// </summary>
+        public Task<IReadOnlyList<Message>> PeekUnprocessedMessagesAsync(int maxMessages = 32);
+
+        /// <summary>
+        /// Move up to <paramref name="maxMessages"/> poison/unprocessed messages back onto the primary queue
+        /// so they can be processed again (receive-count / attempts reset on the new enqueue).
+        /// </summary>
+        /// <returns>Number of messages successfully requeued.</returns>
+        public Task<int> RequeueUnprocessedMessagesAsync(int maxMessages = 32, bool useHighPriorityQueue = true);
     }
 }

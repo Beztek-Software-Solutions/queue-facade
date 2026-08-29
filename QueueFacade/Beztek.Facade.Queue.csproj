@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <id>Beztek.Facade.Queue</id>
-    <version>1.0.9</version>
+    <version>1.0.10</version>
     <authors>Peter Thomas</authors>
     <owners>Beztek Software Solutions</owners>
     <projectUrl>https://github.com/Beztek-Software-Solutions/queue-facade</projectUrl>

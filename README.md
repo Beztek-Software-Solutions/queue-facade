@@ -91,6 +91,8 @@ Partition keys (`{partition}`) follow the same character rules and are always lo
 
 ### Critical Details
 
-1. Application handling messages implements `IMessageProcessor`, if MessageProcessor implementation throws an exception which is Not `System.ApplicationException` then the Queue will again make the message visible to the message processor until message processor succeeds.
-2. If MessageProcessor needs to handle some application exceptions such as ValidationException, it should catch and throw `System.ApplicationException` in order to avoid getting same message again and again.
-3. In the MessageProcessor, we need to use the UnwrappedMessage class and not string, it will throw an exception.
+1. Application handling messages implements `IMessageProcessor`. If the processor throws an exception that is **not** `System.ApplicationException`, the message stays on the queue and becomes visible again after the visibility timeout (~30s by default). `Message.ProcessingAttempt` / the provider receive count increments on each delivery. After `QueueDequeueConfig.MaxProcessingAttempts` (default **5**), the message is moved to the poison queue (`{high}-unprocessed`) and deleted from the primary queue so other work is not blocked.
+2. Returning `false` from the processor moves the message to the poison queue immediately (same as max attempts).
+3. If the processor needs to discard a message without poison (e.g. validation), catch and throw `System.ApplicationException` so the message is deleted and not retried.
+4. Inspect poison payloads with `PeekUnprocessedMessagesAsync`. Move them back to the primary queue with `RequeueUnprocessedMessagesAsync` (receive-count / attempts reset).
+5. In the MessageProcessor, unwrap with `Message.GetMessageObject<T>()`, not a bare string.

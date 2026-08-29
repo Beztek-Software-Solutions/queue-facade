@@ -28,8 +28,7 @@ namespace Beztek.Facade.Queue
         {
             if (processors.TryGetValue(message.MessageType, out IMessageProcessor processor))
             {
-                await processor.Process(message).ConfigureAwait(false);
-                return true;
+                return await processor.Process(message).ConfigureAwait(false);
             }
 
             return false;

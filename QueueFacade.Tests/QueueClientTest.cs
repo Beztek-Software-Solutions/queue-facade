@@ -174,10 +174,13 @@ namespace Beztek.Facade.Queue.Tests
         {
             foreach (bool isHighPriorityQueue in new bool[] { true, false })
             {
-                // Arrange
-                queueProvider.MaxMessageSize = 100;
+                // Arrange: limit allows a normal "String" envelope but not the oversized first item
+                string oversized = "SingleBigStringOverLimitShouldNotBeSent";
+                queueProvider.MaxMessageSize = MessageUtils.GetMessageSize("String", activityId);
+                Assert.That(MessageUtils.GetMessageSize(oversized, activityId), Is.GreaterThan(queueProvider.MaxMessageSize));
+
                 List<string> largeList = new List<string>();
-                largeList.Add("SingleBigStringOverLimitShouldNotBeSent");
+                largeList.Add(oversized);
                 for (int i = 0; i < 1000; i++)
                 {
                     largeList.Add("String");
@@ -255,17 +258,19 @@ namespace Beztek.Facade.Queue.Tests
         {
             foreach (bool isHighPriorityQueue in new bool[] { true, false })
             {
-                // Arrange
-                this.queueProvider.MaxMessageSize = 125;
+                // Arrange: each item fits alone; both together exceed the limit → two enqueue calls
                 string firstBigStringJustUnderLimit = "First";
                 string secondString = "Second";
                 List<string> firstSubList = new List<string> { firstBigStringJustUnderLimit };
                 List<string> secondSubList = new List<string> { secondString };
-                int queueMessageLimit = MessageUtils.GetMessageSize(firstSubList, activityId) + 1;
+                this.queueProvider.MaxMessageSize = Math.Max(
+                    MessageUtils.GetMessageSize(firstSubList, activityId),
+                    MessageUtils.GetMessageSize(secondSubList, activityId));
 
                 List<string> twoElementsList = new List<string>();
                 twoElementsList.AddRange(firstSubList);
                 twoElementsList.AddRange(secondSubList);
+                Assert.That(MessageUtils.GetMessageSize(twoElementsList, activityId), Is.GreaterThan(this.queueProvider.MaxMessageSize));
 
                 // Act
                 var unSentMessages = queueClient.EnqueueBatchedMessages(twoElementsList, isHighPriorityQueue, activityId).Result;

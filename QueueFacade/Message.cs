@@ -6,10 +6,11 @@ namespace Beztek.Facade.Queue
     using System.Text.Json;
 
     /// <summary>
-    /// Class to enable enqueueing and dequeing messages
+    /// Envelope for enqueueing and dequeuing typed messages.
     /// </summary>
     public class Message
     {
+        /// <summary>Creates an empty message (used for deserialization).</summary>
         public Message()
         { }
 
@@ -26,7 +27,7 @@ namespace Beztek.Facade.Queue
         public string MessageType { get; set; }
 
         /// <summary>
-        /// Message.
+        /// Message body (serialized payload).
         /// </summary>
         public object RawMessage { get; set; }
 
@@ -42,12 +43,13 @@ namespace Beztek.Facade.Queue
         public string ActivityId { get; set; }
 
         /// <summary>
-        /// Gets Message object of type <see cref="T"/>
+        /// Gets the message object of type <typeparamref name="T"/>.
         /// </summary>
-        /// <typeparam name="T">Type of Message expected.</typeparam>
-        /// <returns>Message of type <see cref="T"/></returns>
+        /// <typeparam name="T">Type of message expected.</typeparam>
+        /// <returns>Message of type <typeparamref name="T"/>.</returns>
         public T GetMessageObject<T>() => JsonSerializer.Deserialize<T>(Convert.ToString(this.RawMessage));
 
+        /// <inheritdoc />
         public override string ToString()
         {
             return JsonSerializer.Serialize(this);

@@ -91,5 +91,47 @@ namespace Beztek.Facade.Queue.Tests
             Assert.That(b.GetName(), Is.EqualTo("mem-booth:customer-b"));
             Assert.That(a, Is.Not.SameAs(b));
         }
+
+        [Test]
+        public void Azure_ForPartition_ResolvesCustomerQueues()
+        {
+            var mockClient = new Mock<Azure.Storage.Queues.QueueClient>();
+            var template = new AzureQueueProviderConfig(
+                name: "booth-cmd",
+                endpoint: "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net",
+                highPriorityQueue: "al-booth-cmd-{partition}",
+                lowPriorityQueue: "al-booth-cmd-{partition}-low");
+            template.AzureStorageClientCreator = new TestAzureStorageClientCreator(mockClient.Object);
+
+            IPartitionedQueueClient partitioned = QueueClientFactory.GetPartitionedQueueClient(template);
+            string customerId = "8f3c2a1b-7d6e-4f9a-b0c1-2d3e4f5a6b7c";
+            IQueueClient a = partitioned.ForPartition(customerId);
+            IQueueClient b = partitioned.ForPartition(customerId);
+
+            Assert.That(a, Is.SameAs(b));
+            Assert.That(a.GetName(), Is.EqualTo($"booth-cmd:{customerId}"));
+            Assert.That(template.UnprocessedQueue, Is.EqualTo("al-booth-cmd-{partition}-unprocessed"));
+        }
+
+        [Test]
+        public void Azure_GetQueueClient_RejectsUnresolvedTemplate()
+        {
+            var template = new AzureQueueProviderConfig(
+                "booth-cmd",
+                "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net",
+                "al-booth-cmd-{partition}");
+            Assert.Throws<ArgumentException>(() => QueueClientFactory.GetQueueClient(template));
+        }
+
+        [Test]
+        public void Azure_Partitioned_RequiresToken()
+        {
+            var config = new AzureQueueProviderConfig(
+                "booth-cmd-no-token",
+                "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net",
+                "al-booth-cmd");
+            Assert.Throws<ArgumentException>(() =>
+                QueueClientFactory.GetPartitionedQueueClient(config));
+        }
     }
 }

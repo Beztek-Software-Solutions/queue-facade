@@ -1,11 +1,26 @@
-﻿// Copyright (c) Beztek Software Solutions. All rights reserved.
+// Copyright (c) Beztek Software Solutions. All rights reserved.
 
 namespace Beztek.Facade.Queue.Providers
 {
     using System;
 
+    /// <summary>
+    /// Configuration for the Azure Queue Storage provider.
+    /// Queue names use portable <see cref="QueueNameValidator"/> rules (same as SQS).
+    /// </summary>
     public class AzureQueueProviderConfig : IQueueProviderConfig
     {
+        /// <summary>
+        /// Creates an Azure Queue Storage provider configuration.
+        /// </summary>
+        /// <param name="name">Logical client name (factory cache key).</param>
+        /// <param name="endpoint">Azure Storage connection string or queue endpoint.</param>
+        /// <param name="highPriorityQueue">Queue name for high-priority messages (portable naming).</param>
+        /// <param name="lowPriorityQueue">Optional low-priority queue name.</param>
+        /// <param name="visibilityTimeoutMilliseconds">Visibility timeout applied on receive.</param>
+        /// <param name="unprocessedQueue">
+        /// Poison queue name. Default: <c>{highPriorityQueue}-unprocessed</c>.
+        /// </param>
         public AzureQueueProviderConfig(
             string name,
             string endpoint,
@@ -57,16 +72,22 @@ namespace Beztek.Facade.Queue.Providers
             this.VisibilityTimeoutMilliseconds = visibilityTimeoutMilliseconds;
         }
 
+        /// <inheritdoc />
         public QueueProviderType QueueProviderType { get; } = QueueProviderType.AzureStorage;
 
+        /// <inheritdoc />
         public string Name { get; set; }
 
+        /// <inheritdoc />
         public int VisibilityTimeoutMilliseconds { get; set; }
 
+        /// <summary>Azure Storage connection string or queue endpoint.</summary>
         public string Endpoint { get; set; }
 
+        /// <summary>High-priority queue name.</summary>
         public string HighPriorityQueue { get; set; }
 
+        /// <summary>Optional low-priority queue name.</summary>
         public string LowPriorityQueue { get; }
 
         /// <summary>Poison queue name. Default: <c>{highPriorityQueue}-unprocessed</c>.</summary>

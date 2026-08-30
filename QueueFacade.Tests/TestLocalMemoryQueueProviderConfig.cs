@@ -5,6 +5,7 @@ namespace Beztek.Facade.Queue.Tests
     using System;
     using NUnit.Framework;
     using Queue;
+    using Queue.Providers;
 
     [TestFixture]
     public class TestLocalMemoryQueueProviderConfig

@@ -34,6 +34,7 @@ namespace Beztek.Facade.Queue
             return false;
         }
 
+        /// <inheritdoc />
         public async Task<List<bool>> Process(List<Message> messages)
         {
             if (messages.Count > 0 && (processors.TryGetValue(messages[0].MessageType, out IMessageProcessor processor)))

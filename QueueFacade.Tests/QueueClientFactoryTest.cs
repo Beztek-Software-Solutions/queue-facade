@@ -54,5 +54,22 @@ namespace Beztek.Facade.Queue.Tests
             IQueueProviderConfig config = new TestUnsupportedQueueProviderConfig("other");
             Assert.Throws<NotSupportedException>(() => QueueClientFactory.GetQueueClient(config, logger));
         }
+
+        [Test]
+        public void GetPartitionedQueueClient_NullConfig_Throws()
+        {
+            Assert.Throws<ArgumentNullException>(() =>
+                QueueClientFactory.GetPartitionedQueueClient(null, logger));
+        }
+
+        [Test]
+        public void AzureProvider_RejectsUnresolvedPartitionTemplate()
+        {
+            var config = new AzureQueueProviderConfig(
+                "azure",
+                "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net",
+                "high-{partition}");
+            Assert.Throws<ArgumentException>(() => QueueClientFactory.GetQueueClient(config, logger));
+        }
     }
 }

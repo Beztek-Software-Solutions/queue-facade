@@ -18,7 +18,10 @@ namespace Beztek.Facade.Queue
     /// </summary>
     public static class QueueNameValidator
     {
+        /// <summary>Minimum allowed queue name length.</summary>
         public const int MinLength = 3;
+
+        /// <summary>Maximum allowed queue name length (portable Azure + SQS).</summary>
         public const int MaxLength = 63;
 
         private static readonly Regex QueueNameRegex = new(

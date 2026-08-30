@@ -12,6 +12,7 @@ namespace Beztek.Facade.Queue
     /// </summary>
     public static class QueuePartition
     {
+        /// <summary>Placeholder token embedded in multi-tenant queue name templates.</summary>
         public const string Token = "{partition}";
 
         /// <summary>Sample segment used only when validating templates that contain <see cref="Token"/>.</summary>
@@ -21,6 +22,8 @@ namespace Beztek.Facade.Queue
             "^[a-z0-9]+(-[a-z0-9]+)*$",
             RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture);
 
+        /// <summary>Returns true when <paramref name="value"/> contains <see cref="Token"/>.</summary>
+        /// <param name="value">Queue name or template.</param>
         public static bool ContainsToken(string value) =>
             !string.IsNullOrEmpty(value)
             && value.IndexOf(Token, StringComparison.Ordinal) >= 0;
@@ -57,6 +60,11 @@ namespace Beztek.Facade.Queue
         public static string NormalizePartitionKey(string partitionKey, bool forceLowercase) =>
             NormalizePartitionKey(partitionKey);
 
+        /// <summary>
+        /// Replaces <see cref="Token"/> in <paramref name="template"/> with <paramref name="normalizedPartitionKey"/>.
+        /// </summary>
+        /// <param name="template">Queue name template that may contain <see cref="Token"/>.</param>
+        /// <param name="normalizedPartitionKey">Already-normalized partition key.</param>
         public static string Resolve(string template, string normalizedPartitionKey)
         {
             if (string.IsNullOrEmpty(template))

@@ -346,6 +346,15 @@ namespace Beztek.Facade.Queue.Tests
         }
 
         [Test]
+        public async Task GetApproximateQueueLength_DelegatesToProvider()
+        {
+            await queueClient.Enqueue(message, true, activityId).ConfigureAwait(false);
+            await queueClient.Enqueue(message, true, activityId).ConfigureAwait(false);
+
+            Assert.That(await queueClient.GetApproximateQueueLength(true).ConfigureAwait(false), Is.EqualTo(2));
+        }
+
+        [Test]
         public void DequeueTest()
         {
             foreach (bool isHighPriorityQueue in new bool[] { true, false })

@@ -1,98 +1,48 @@
-# Queue Facade Library
+# Queue Facade
 
-This library is intended for inter-service communication by use of Queues.
+Unified .NET queue facade (`Beztek.Facade.Queue`) over Azure Queue Storage, AWS SQS, and in-process LocalMemory.
 
-# Overview
+Source: https://github.com/Beztek-Software-Solutions/queue-facade
 
-It is intended to be cloud portable and take advantage of the native managed services in each cloud, such as Azure Queue Storage and AWS Simple Queue Service.
+## Projects
 
-It is a reusable and configurable queue library that can ensure that just one consumer among multiple competing consumers processes each message.
-This library should be available for any micro-service for this use case.
+| Project | Description |
+|---------|-------------|
+| [`QueueFacade/`](QueueFacade/) | Library package `Beztek.Facade.Queue` (see [QueueFacade/README.md](QueueFacade/README.md) for full API and provider guidance) |
+| [`QueueFacade.Tests/`](QueueFacade.Tests/) | NUnit unit tests |
+
+## Quick start
+
+```bash
+dotnet restore queue-facade.sln
+dotnet build queue-facade.sln
+dotnet test QueueFacade.Tests/Beztek.Facade.Queue.Tests.csproj
+```
+
+With coverage (Coverlet; target ≥ 85% line coverage):
+
+```bash
+dotnet test QueueFacade.Tests/Beztek.Facade.Queue.Tests.csproj \
+  /p:CollectCoverage=true \
+  /p:CoverletOutputFormat=cobertura \
+  /p:CoverletOutput=./coverage/ \
+  /p:Include='[Beztek.Facade.Queue]*' \
+  /p:Threshold=85 \
+  /p:ThresholdType=line
+```
+
+## NuGet
+
+```bash
+dotnet add package Beztek.Facade.Queue
+```
+
+See [QueueFacade/README.md](QueueFacade/README.md) for initialization samples, multi-tenant `{partition}` templates, poison-queue behavior, and message processing contracts.
 
 ## Providers
 
-| `QueueProviderType` | Config class | Backend |
-|---------------------|--------------|---------|
-| `LocalMemory` | `LocalMemoryQueueProviderConfig` | In-process (tests / single instance) |
-| `AzureStorage` | `AzureQueueProviderConfig` | Azure Queue Storage |
-| `AwsSqs` | `SqsQueueProviderConfig` | AWS SQS (standard queues) |
-
-Each provider supports a high-priority queue, an optional low-priority queue, and a **per-client poison queue** defaulting to `{highPriorityQueue}-unprocessed` (override with `unprocessedQueue`). That keeps multiple apps in one cloud account from sharing one global poison queue.
-
-### Multi-tenant partitions (`{partition}`)
-
-Embed `{partition}` in queue name templates (usually a **customer id**). Use `GetPartitionedQueueClient` — do not call `GetQueueClient` with unresolved templates.
-
-```csharp
-var template = new SqsQueueProviderConfig(
-    name: "booth-commands",
-    region: "us-east-1",
-    highPriorityQueue: "al-booth-cmd-{partition}");
-// poison defaults to: al-booth-cmd-{partition}-unprocessed
-
-IPartitionedQueueClient partitioned = QueueClientFactory.GetPartitionedQueueClient(template);
-IQueueClient forChurch = partitioned.ForPartition(customerId);
-await forChurch.Enqueue(payload, useHighPriorityQueue: true);
-```
-
-Each partition gets its own queues (and poison queue). Partition keys are always lowercased and must use portable naming (no underscores). Watch cloud **queue-count limits** — prefer create-on-first-use (`CreateIfNotExists`).
-
-### AWS SQS
-
-```csharp
-var config = new SqsQueueProviderConfig(
-    name: "booth-commands",
-    region: "us-east-1",
-    highPriorityQueue: "al-booth-commands",
-    lowPriorityQueue: null,           // optional
-    visibilityTimeoutMilliseconds: 30_000,
-    serviceUrl: null,                 // or "http://localhost:4566" for LocalStack
-    accessKeyId: null,                // null = default AWS credential chain
-    secretAccessKey: null);
-
-IQueueClient client = QueueClientFactory.GetQueueClient(config, logger);
-await client.Enqueue(payload, useHighPriorityQueue: true);
-```
-
-Notes:
-
-- Queue names: **portable** rules via `QueueNameValidator` (same as Azure) — see below.
-- Max receive batch: 10. Max message body: 256 KiB.
-- Credentials: default chain (env / profile / IAM role), or pass explicit keys on the config.
-
-## Portable queue naming (all providers)
-
-Names must work on **both** Azure Queue Storage and AWS SQS (`QueueNameValidator`):
-
-   - 3–63 characters
-   - Lowercase letters, digits, and hyphens only (no underscores, no uppercase)
-   - Must start and end alphanumeric; no consecutive hyphens
-   - Reserved name `test` is rejected
-   - FIFO (`.fifo`) is not supported
-
-Partition keys (`{partition}`) follow the same character rules and are always lowercased.
-## Steps to use Queue Facade
-
-1. Find Azure storage connection string and queue names, or AWS region + queue names, or create a new queue by providing a new queue name
-2. Implement callback interface IMessageProcessor such as class ProcessMessage
-3. Use QueueClientFactory to create Queue client by passing connection string and at lease one queue name
-       client=QueueClientFactory.GeteQueueClient(…)
-4. Use client.Enqueue(…) to send generic message to queue, or client.EnqueueBatchedMessages(...) to send list of messages in batch mode.
-       Example1:  bool result = await client.Enqueue<string>(stringMessage, true, activityId);
-       Example2:  IList<bool> results = await client.Enqueue<string>(stringList, true, activityId);
-       Example3:  List<string> unsentMessages = await client.EnqueueBatchedMessages<string>(stringList, true, activityId);
-
-       Notice that example3 batch input stringList in chunks, each chunk includes a sub-list of input.
-       This not only result in less messages in queue than example2, but also allow consumer(etc. event scheduler) to handle batched messages more efficiently.
-
-5. Create an instance of ProcessMessage, ProcessMessage callback = new ProcessMessage()
-6. Use client.DequeueAndProcess(… callback) to retrieve messages from queue
-7. The callback instance should have the messages
-
-### Critical Details
-
-1. Application handling messages implements `IMessageProcessor`. If the processor throws an exception that is **not** `System.ApplicationException`, the message stays on the queue and becomes visible again after the visibility timeout (~30s by default). `Message.ProcessingAttempt` / the provider receive count increments on each delivery. After `QueueDequeueConfig.MaxProcessingAttempts` (default **5**), the message is moved to the poison queue (`{high}-unprocessed`) and deleted from the primary queue so other work is not blocked.
-2. Returning `false` from the processor moves the message to the poison queue immediately (same as max attempts).
-3. If the processor needs to discard a message without poison (e.g. validation), catch and throw `System.ApplicationException` so the message is deleted and not retried.
-4. Inspect poison payloads with `PeekUnprocessedMessagesAsync`. Move them back to the primary queue with `RequeueUnprocessedMessagesAsync` (receive-count / attempts reset).
-5. In the MessageProcessor, unwrap with `Message.GetMessageObject<T>()`, not a bare string.
+| Provider | Configuration type | Status |
+|----------|-------------------|--------|
+| LocalMemory | `LocalMemoryQueueProviderConfig` | Implemented (tests / single instance) |
+| Azure Queue Storage | `AzureQueueProviderConfig` | Implemented |
+| AWS SQS (standard queues) | `SqsQueueProviderConfig` | Implemented |

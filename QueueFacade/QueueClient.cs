@@ -38,15 +38,11 @@ namespace Beztek.Facade.Queue
         internal IQueueProvider queueProvider;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="AzureQueueProvider"/> class.
-        /// We are using nullable parameters to avoid extra constructors. There is a use case in batching where they need to use
-        /// a low priority queue for large batches and a high priority queue for single batches. We want this library to be extensible for that use case.
-        /// The Queue Name needs to be less than 25 characters, no spaces, only alphanumeric to begin and start.
-        /// Note: For those unfamiliar with C#, an optional parameter means one can use multiple constructors for multiple scenarios; you literally don't have to supply the optional parameter.
+        /// Initializes a new instance of the <see cref="QueueClient"/> class.
         /// </summary>
-        /// <param name="endpoint"></param>
-        /// <param name="highPriorityQueue"></param>
-        /// <param name="lowPriorityQueue"></param>
+        /// <param name="name">Logical client name.</param>
+        /// <param name="queueProvider">Backing queue provider.</param>
+        /// <param name="logger">Optional logger.</param>
         internal QueueClient(string name, IQueueProvider queueProvider, ILogger logger = null)
         {
             this.name = name;
@@ -54,12 +50,15 @@ namespace Beztek.Facade.Queue
             this.logger = logger;
         }
 
+        /// <inheritdoc />
         public string GetName()
         {
             return this.name;
         }
 
-        // When we stop dequeueing, we should be able to restart dequeing, so we will need to know that was set
+        /// <summary>
+        /// Active dequeue settings. Retained so a stopped loop can be restarted with the same configuration.
+        /// </summary>
         public QueueDequeueConfig QueueDequeueConfig { get; set; }
 
         /// <inheritdoc />
@@ -282,6 +281,10 @@ namespace Beztek.Facade.Queue
             await DequeueAndProcess(new QueueDequeueConfig(maxMessageRate, maxAsynchronousProcesses, handler, cancellationToken, batchSize, pollIntervalInMilliseconds, maxProcessingAttempts)).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Receive messages from the queue using the settings in <paramref name="queueDequeueConfig"/>.
+        /// </summary>
+        /// <param name="queueDequeueConfig">Dequeue rate, batching, processor, and attempt limits.</param>
         public virtual async Task DequeueAndProcess(QueueDequeueConfig queueDequeueConfig)
         {
             queueProvider.CreateIfNotExists();

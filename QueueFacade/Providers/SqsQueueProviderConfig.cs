@@ -74,16 +74,22 @@ namespace Beztek.Facade.Queue.Providers
             SecretAccessKey = secretAccessKey;
         }
 
+        /// <inheritdoc />
         public QueueProviderType QueueProviderType { get; } = QueueProviderType.AwsSqs;
 
+        /// <inheritdoc />
         public string Name { get; set; }
 
+        /// <inheritdoc />
         public int VisibilityTimeoutMilliseconds { get; set; }
 
+        /// <summary>AWS region system name (e.g. us-east-1).</summary>
         public string Region { get; set; }
 
+        /// <summary>High-priority queue name.</summary>
         public string HighPriorityQueue { get; set; }
 
+        /// <summary>Optional low-priority queue name.</summary>
         public string LowPriorityQueue { get; }
 
         /// <summary>Poison / dead-letter style queue for failed processing (per client, not global).</summary>
@@ -92,8 +98,10 @@ namespace Beztek.Facade.Queue.Providers
         /// <summary>Custom SQS endpoint (LocalStack / VPC endpoint). Null = regional AWS.</summary>
         public string ServiceUrl { get; set; }
 
+        /// <summary>Optional explicit access key; otherwise the default AWS credential chain is used.</summary>
         public string AccessKeyId { get; set; }
 
+        /// <summary>Optional explicit secret key.</summary>
         public string SecretAccessKey { get; set; }
 
         internal SqsClientCreator SqsClientCreator { get; set; } = new SqsClientCreator();

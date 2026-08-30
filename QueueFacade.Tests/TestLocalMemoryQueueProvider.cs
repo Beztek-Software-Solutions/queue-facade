@@ -63,6 +63,17 @@ namespace Beztek.Facade.Queue.Tests
         }
 
         [Test]
+        public async Task GetApproximateQueueLengthTest()
+        {
+            LocalMemoryQueueProvider queueProvider = new LocalMemoryQueueProvider(logger, false);
+            await queueProvider.SendMessageAsync("test message 1", true).ConfigureAwait(false);
+            await queueProvider.SendMessageAsync("test message 2", true).ConfigureAwait(false);
+
+            Assert.That(await queueProvider.GetApproximateQueueLength(true).ConfigureAwait(false), Is.EqualTo(2));
+            Assert.That(await queueProvider.GetApproximateUnprocessedQueueLength().ConfigureAwait(false), Is.EqualTo(0));
+        }
+
+        [Test]
         public async Task GetUnhideMessageTest()
         {
             // Create with unhide daemon

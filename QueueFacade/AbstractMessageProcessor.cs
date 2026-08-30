@@ -8,12 +8,14 @@ namespace Beztek.Facade.Queue
     using System.Threading.Tasks;
 
     /// <summary>
-    /// Base implementation of IMessageProcessor
+    /// Base implementation of <see cref="IMessageProcessor"/>.
     /// </summary>
     public abstract class AbstractMessageProcessor : IMessageProcessor
     {
+        /// <inheritdoc />
         public abstract Task<bool> Process(Message message);
 
+        /// <inheritdoc />
         public virtual async Task<List<bool>> Process(List<Message> messageList)
         {
             List<bool> results = new List<bool>();

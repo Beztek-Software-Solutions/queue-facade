@@ -25,6 +25,10 @@ namespace Beztek.Facade.Queue.Tests
             AzureQueueProviderConfig config = new AzureQueueProviderConfig("test-name", "test-endpoint", "test-high-priority");
             this.mockQueueClient = new Mock<QueueClient>();
             this.mockQueueClient.Setup(m => m.MessageMaxBytes).Returns(maxMessageSize);
+            var queueProperties = QueuesModelFactory.QueueProperties(null, 11L);
+            this.mockQueueClient
+                .Setup(m => m.GetProperties(It.IsAny<CancellationToken>()))
+                .Returns(new ResponseTest<QueueProperties>(queueProperties));
             config.AzureStorageClientCreator = new TestAzureStorageClientCreator(this.mockQueueClient.Object);
             this.queueProvider = new AzureQueueProvider(config);
         }
@@ -111,6 +115,31 @@ namespace Beztek.Facade.Queue.Tests
             mockQueueClient.Setup(m => m.CreateIfNotExists(null, default(CancellationToken))).Throws(new ArgumentException("simulated exception"));
 
             Assert.Throws<ArgumentException>(() => queueProvider.CreateIfNotExists());
+        }
+
+        [Test]
+        public async Task GetApproximateQueueLengthTest()
+        {
+            long length = await queueProvider.GetApproximateQueueLength(true);
+            Assert.That(length, Is.EqualTo(11));
+        }
+
+        [Test]
+        public async Task GetApproximateUnprocessedQueueLengthTest()
+        {
+            long length = await queueProvider.GetApproximateUnprocessedQueueLength();
+            Assert.That(length, Is.EqualTo(11));
+        }
+
+        [Test]
+        public async Task DeleteUnprocessedMessageAsyncTest()
+        {
+            mockQueueClient
+                .Setup(m => m.DeleteMessageAsync("mid-1", "pop-1", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Mock.Of<Azure.Response>());
+
+            await queueProvider.DeleteUnprocessedMessageAsync(
+                QueuesModelFactory.QueueMessage("mid-1", "pop-1", "body", 0, null, null, null));
         }
     }
 }

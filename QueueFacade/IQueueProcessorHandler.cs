@@ -7,31 +7,36 @@ namespace Beztek.Facade.Queue
     using System.Threading.Tasks;
 
     /// <summary>
-    /// Handler to combine multiple IMessageProcessor(s) to process different Type of messages.
+    /// Handler to combine multiple <see cref="IMessageProcessor"/> instances for different message types.
     /// </summary>
     public interface IQueueProcessorHandler
     {
         /// <summary>
-        /// Processes an <see cref="Message"/>.
+        /// Processes a single <see cref="Message"/>.
         /// </summary>
-        /// <param name="message"></param>
-        /// <returns>True if processed successfully by at least one of the Processors.</returns>
+        /// <param name="message">Message to process.</param>
+        /// <returns>True if processed successfully by at least one of the processors.</returns>
         Task<bool> Process(Message message);
 
+        /// <summary>
+        /// Processes a batch of <see cref="Message"/> instances.
+        /// </summary>
+        /// <param name="messages">Messages to process.</param>
+        /// <returns>Per-message success flags.</returns>
         Task<List<bool>> Process(List<Message> messages);
 
         /// <summary>
-        /// Adds a <see cref="IMessageProcessor"/> that can handle <see cref="messageType"/> of message objects.
+        /// Adds an <see cref="IMessageProcessor"/> that can handle messages of <paramref name="messageType"/>.
         /// </summary>
-        /// <param name="messageType">Type of message</param>
-        /// <param name="processor">Message processor</param>
-        /// <returns></returns>
+        /// <param name="messageType">Type of message payload.</param>
+        /// <param name="processor">Message processor.</param>
+        /// <returns>This handler for chaining.</returns>
         IQueueProcessorHandler AddProcessor(Type messageType, IMessageProcessor processor);
 
         /// <summary>
-        /// Default implementation of <see cref="IQueueProcessorHandler"/>
+        /// Default implementation of <see cref="IQueueProcessorHandler"/>.
         /// </summary>
-        /// <returns>IQueueProcessorHandler</returns>
+        /// <returns>A new <see cref="DefaultProcessorHandler"/>.</returns>
         static IQueueProcessorHandler Default() => new DefaultProcessorHandler();
     }
 }

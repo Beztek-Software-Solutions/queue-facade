@@ -173,6 +173,55 @@ namespace Beztek.Facade.Queue.Tests
         }
 
         [Test]
+        public async Task GetApproximateUnprocessedQueueLengthTest()
+        {
+            mockSqs
+                .Setup(m => m.GetQueueAttributesAsync(It.IsAny<GetQueueAttributesRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new GetQueueAttributesResponse
+                {
+                    Attributes = new Dictionary<string, string>
+                    {
+                        ["ApproximateNumberOfMessages"] = "3",
+                    },
+                });
+
+            long length = await queueProvider.GetApproximateUnprocessedQueueLength();
+            Assert.That(length, Is.EqualTo(3));
+        }
+
+        [Test]
+        public async Task DeleteUnprocessedMessageAsyncTest()
+        {
+            mockSqs
+                .Setup(m => m.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new DeleteMessageResponse { HttpStatusCode = HttpStatusCode.OK });
+
+            queueProvider.CreateIfNotExists();
+            await queueProvider.DeleteUnprocessedMessageAsync(new Message
+            {
+                ReceiptHandle = "rh-poison",
+                Body = "x",
+            });
+
+            mockSqs.Verify(
+                m => m.DeleteMessageAsync(
+                    It.Is<DeleteMessageRequest>(r =>
+                        r.ReceiptHandle == "rh-poison"
+                        && r.QueueUrl.EndsWith("test-high-priority-unprocessed", StringComparison.Ordinal)),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+
+        [Test]
+        public async Task DeleteUnprocessedMessageAsync_NullHook_NoOp()
+        {
+            await queueProvider.DeleteUnprocessedMessageAsync(null);
+            mockSqs.Verify(
+                m => m.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), It.IsAny<CancellationToken>()),
+                Times.Never);
+        }
+
+        [Test]
         public void CreateIfNotExists_WithLowPriority()
         {
             var config = new SqsQueueProviderConfig(

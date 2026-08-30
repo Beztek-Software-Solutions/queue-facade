@@ -11,11 +11,18 @@ namespace Beztek.Facade.Queue
     public interface IMessageProcessor
     {
         /// <summary>
-        /// Processes <see cref="Message"/> which has Type information for deserialization. It should throw an exception if failure
+        /// Processes a <see cref="Message"/> which has type information for deserialization.
+        /// Throw an exception on failure (other than <see cref="System.ApplicationException"/>, which discards without poison).
         /// </summary>
-        /// <param name="message"><seealso cref="Message"/> with message object and type information.</param>
-        public Task<bool> Process(Message message);
+        /// <param name="message"><see cref="Message"/> with message object and type information.</param>
+        /// <returns>True if processed successfully; false to move the message to the poison queue immediately.</returns>
+        Task<bool> Process(Message message);
 
-        public Task<List<bool>> Process(List<Message> messageList);
+        /// <summary>
+        /// Processes a batch of <see cref="Message"/> instances.
+        /// </summary>
+        /// <param name="messageList">Messages to process.</param>
+        /// <returns>Per-message success flags in the same order as <paramref name="messageList"/>.</returns>
+        Task<List<bool>> Process(List<Message> messageList);
     }
 }

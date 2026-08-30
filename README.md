@@ -39,9 +39,11 @@ dotnet add package Beztek.Facade.Queue
 
 See [QueueFacade/README.md](QueueFacade/README.md) for initialization samples, multi-tenant `{partition}` templates, poison-queue behavior, and message processing contracts.
 
+Provider **config** types are in `Beztek.Facade.Queue` (top-level), consistent with Cache and Storage.
+
 ## Providers
 
-| Provider | Configuration type | Status |
+| Provider | Configuration type (namespace `Beztek.Facade.Queue`) | Status |
 |----------|-------------------|--------|
 | LocalMemory | `LocalMemoryQueueProviderConfig` | Implemented (tests / single instance) |
 | Azure Queue Storage | `AzureQueueProviderConfig` | Implemented |

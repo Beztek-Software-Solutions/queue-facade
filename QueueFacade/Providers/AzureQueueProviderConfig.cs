@@ -1,8 +1,9 @@
 // Copyright (c) Beztek Software Solutions. All rights reserved.
 
-namespace Beztek.Facade.Queue.Providers
+namespace Beztek.Facade.Queue
 {
     using System;
+    using Beztek.Facade.Queue.Providers;
 
     /// <summary>
     /// Configuration for the Azure Queue Storage provider.

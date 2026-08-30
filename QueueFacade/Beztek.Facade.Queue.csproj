@@ -4,13 +4,13 @@
     <TargetFramework>net9.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <id>Beztek.Facade.Queue</id>
-    <version>1.1.0</version>
+    <version>1.1.1</version>
     <authors>Peter Thomas</authors>
     <owners>Beztek Software Solutions</owners>
     <projectUrl>https://github.com/Beztek-Software-Solutions/queue-facade</projectUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <description>Inter-service communication and queuing</description>
-    <releaseNotes>Inter-service communication and queuing</releaseNotes>
+    <releaseNotes>Provider configs (LocalMemory/Azure/Sqs) moved to top-level Beztek.Facade.Queue namespace (aligned with Cache/Storage).</releaseNotes>
     <copyright>Copyright 2023, Beztek Software Solutions</copyright>
     <tags>Beztek.Facade.Queue;queue-facade;QueueFacade</tags>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>

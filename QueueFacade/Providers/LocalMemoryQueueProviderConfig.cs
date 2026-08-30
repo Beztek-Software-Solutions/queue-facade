@@ -1,6 +1,6 @@
 // Copyright (c) Beztek Software Solutions. All rights reserved.
 
-namespace Beztek.Facade.Queue.Providers
+namespace Beztek.Facade.Queue
 {
     using System;
 

@@ -24,6 +24,12 @@ Obtain instances via `QueueClientFactory.GetQueueClient`. For multi-tenant templ
 
 ## Initializing queue clients
 
+Provider **config** types live in the top-level `Beztek.Facade.Queue` namespace (same pattern as Cache and Storage). Provider *implementations* remain internal under `Beztek.Facade.Queue.Providers`.
+
+```csharp
+using Beztek.Facade.Queue;
+```
+
 ### AWS SQS
 
 ```csharp
@@ -120,6 +126,8 @@ Names must work on **both** Azure Queue Storage and AWS SQS (`QueueNameValidator
 Partition keys (`{partition}`) follow the same character rules and are always lowercased.
 
 ## Providers
+
+Config classes are in **`Beztek.Facade.Queue`** (not `.Providers`):
 
 | `QueueProviderType` | Config class | Backend |
 |---------------------|--------------|---------|

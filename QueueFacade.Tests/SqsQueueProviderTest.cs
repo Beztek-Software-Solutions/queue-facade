@@ -256,5 +256,151 @@ namespace Beztek.Facade.Queue.Tests
 
             Assert.DoesNotThrow(() => queueProvider.CreateIfNotExists());
         }
+
+        [Test]
+        public void CreateIfNotExists_SecondCall_IsNoOp()
+        {
+            queueProvider.CreateIfNotExists();
+            queueProvider.CreateIfNotExists();
+            mockSqs.Verify(
+                m => m.CreateQueueAsync(It.IsAny<CreateQueueRequest>(), It.IsAny<CancellationToken>()),
+                Times.Exactly(2)); // high + unprocessed once each
+        }
+
+        [Test]
+        public async Task SendMessageAsync_EmptyMessageId_ReturnsFalse()
+        {
+            mockSqs
+                .Setup(m => m.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new SendMessageResponse { MessageId = null, HttpStatusCode = HttpStatusCode.OK });
+
+            Assert.That(await queueProvider.SendMessageAsync("test", true), Is.False);
+        }
+
+        [Test]
+        public void GetMessages_NullMessages_ReturnsEmpty()
+        {
+            mockSqs
+                .Setup(m => m.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ReceiveMessageResponse { Messages = null });
+
+            IList<object> result = queueProvider.GetMessages(10, true);
+            Assert.That(result.Count, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void GetReceiveCount_MissingOrInvalid_DefaultsToOne()
+        {
+            Assert.That(queueProvider.GetReceiveCount(new Message { Body = "x" }), Is.EqualTo(1));
+            Assert.That(
+                queueProvider.GetReceiveCount(new Message
+                {
+                    Body = "x",
+                    Attributes = new Dictionary<string, string> { ["ApproximateReceiveCount"] = "nope" },
+                }),
+                Is.EqualTo(1));
+            Assert.That(queueProvider.GetReceiveCount(null), Is.EqualTo(1));
+            Assert.That(queueProvider.GetReceiveCount("not-a-message"), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void ReceiveAndPeekUnprocessed_ReturnsMessages()
+        {
+            mockSqs
+                .Setup(m => m.ReceiveMessageAsync(It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ReceiveMessageResponse
+                {
+                    Messages = new List<Message>
+                    {
+                        new Message { MessageId = "p1", Body = "poison-body", ReceiptHandle = "rh-p" },
+                    },
+                });
+
+            IList<object> received = queueProvider.ReceiveUnprocessedMessages(5);
+            Assert.That(received.Count, Is.EqualTo(1));
+            Assert.That(queueProvider.GetMessageBody(received[0]), Is.EqualTo("poison-body"));
+
+            IList<object> peeked = queueProvider.PeekUnprocessedMessages(5);
+            Assert.That(peeked.Count, Is.EqualTo(1));
+        }
+
+        [Test]
+        public async Task GetApproximateQueueLength_MissingAttribute_ReturnsZero()
+        {
+            mockSqs
+                .Setup(m => m.GetQueueAttributesAsync(It.IsAny<GetQueueAttributesRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new GetQueueAttributesResponse
+                {
+                    Attributes = new Dictionary<string, string>(),
+                });
+
+            Assert.That(await queueProvider.GetApproximateQueueLength(true), Is.EqualTo(0));
+            Assert.That(await queueProvider.GetApproximateUnprocessedQueueLength(), Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task GetApproximateQueueLength_NullAttributes_ReturnsZero()
+        {
+            mockSqs
+                .Setup(m => m.GetQueueAttributesAsync(It.IsAny<GetQueueAttributesRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new GetQueueAttributesResponse { Attributes = null });
+
+            Assert.That(await queueProvider.GetApproximateQueueLength(true), Is.EqualTo(0));
+        }
+
+        [Test]
+        public async Task DeleteMessageAsync_NullOrEmptyReceipt_NoOp()
+        {
+            queueProvider.CreateIfNotExists();
+            await queueProvider.DeleteMessageAsync(null, true);
+            await queueProvider.DeleteMessageAsync(new Message { Body = "x", ReceiptHandle = "" }, true);
+            mockSqs.Verify(
+                m => m.DeleteMessageAsync(It.IsAny<DeleteMessageRequest>(), It.IsAny<CancellationToken>()),
+                Times.Never);
+        }
+
+        [Test]
+        public void EnsureQueueUrl_QueueNameExists_FallsBackToGetUrl()
+        {
+            mockSqs
+                .Setup(m => m.CreateQueueAsync(It.IsAny<CreateQueueRequest>(), It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new QueueNameExistsException("exists"));
+            mockSqs
+                .Setup(m => m.GetQueueUrlAsync(It.IsAny<GetQueueUrlRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new GetQueueUrlResponse
+                {
+                    QueueUrl = "https://sqs.us-east-1.amazonaws.com/123/existing",
+                });
+
+            Assert.DoesNotThrow(() => queueProvider.CreateIfNotExists());
+            mockSqs.Verify(
+                m => m.GetQueueUrlAsync(It.IsAny<GetQueueUrlRequest>(), It.IsAny<CancellationToken>()),
+                Times.AtLeastOnce);
+        }
+
+        [Test]
+        public async Task SendMessageAsync_LowPriority_UsesLowQueueUrl()
+        {
+            var config = new SqsQueueProviderConfig("lp-send", "us-east-1", "hi-q", "lo-q");
+            config.SqsClientCreator = new TestSqsClientCreator(mockSqs.Object);
+            var provider = new SqsQueueProvider(config);
+
+            mockSqs
+                .Setup(m => m.SendMessageAsync(It.IsAny<SendMessageRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new SendMessageResponse { MessageId = "mid-lo" });
+
+            Assert.That(await provider.SendMessageAsync("x", useHighPriorityQueue: false), Is.True);
+            mockSqs.Verify(
+                m => m.SendMessageAsync(
+                    It.Is<SendMessageRequest>(r => r.QueueUrl.EndsWith("lo-q", StringComparison.Ordinal)),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+
+        [Test]
+        public void GetMessageBody_NullMessage_ReturnsNull()
+        {
+            Assert.That(queueProvider.GetMessageBody(null), Is.Null);
+        }
     }
 }

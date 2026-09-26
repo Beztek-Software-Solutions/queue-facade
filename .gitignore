@@ -4,3 +4,7 @@ QueueFacade/bin/*
 QueueFacade/obj/*
 QueueFacade.Tests/bin/*
 QueueFacade.Tests/obj/*
+coverage/
+
+# Makefile flock for concurrent make test / coverage / test-live
+.dotnet-build.lock

@@ -1,16 +1,17 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
     <id>Beztek.Facade.Queue</id>
-    <version>1.1.1</version>
+    <version>1.2.0</version>
     <authors>Peter Thomas</authors>
     <owners>Beztek Software Solutions</owners>
     <projectUrl>https://github.com/Beztek-Software-Solutions/queue-facade</projectUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <description>Inter-service communication and queuing</description>
-    <releaseNotes>Provider configs (LocalMemory/Azure/Sqs) moved to top-level Beztek.Facade.Queue namespace (aligned with Cache/Storage).</releaseNotes>
+    <releaseNotes>1.2.0: Azure Service Bus, RabbitMQ, Google Pub/Sub, Redis/Valkey/Dragonfly, ActiveMQ, Beanstalkd providers + Testcontainers live coverage.</releaseNotes>
     <copyright>Copyright 2023, Beztek Software Solutions</copyright>
     <tags>Beztek.Facade.Queue;queue-facade;QueueFacade</tags>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
@@ -18,9 +19,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AWSSDK.SQS" Version="4.0.1.2" />
+    <PackageReference Include="Apache.NMS.ActiveMQ" Version="2.2.0" />
+    <PackageReference Include="AWSSDK.SQS" Version="4.0.100.14" />
+    <!-- Prefer explicit Core so transitive AWSSDK stays on the patched line (NU190x / GHSA-9cvc-h2w8-phrp). -->
+    <PackageReference Include="AWSSDK.Core" Version="4.0.102.7" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.21.0" />
     <PackageReference Include="Azure.Storage.Queues" Version="12.27.1" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.10" />
+    <PackageReference Include="Google.Cloud.PubSub.V1" Version="3.38.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.12" />
+    <PackageReference Include="RabbitMQ.Client" Version="7.2.2" />
+    <PackageReference Include="StackExchange.Redis" Version="3.3.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,6 +36,9 @@
     <None Include="README.md" Pack="true" PackagePath="" />
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>Beztek.Facade.Queue.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>DynamicProxyGenAssembly2</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 

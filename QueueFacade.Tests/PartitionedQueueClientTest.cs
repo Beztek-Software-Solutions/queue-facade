@@ -133,5 +133,33 @@ namespace Beztek.Facade.Queue.Tests
             Assert.Throws<ArgumentException>(() =>
                 QueueClientFactory.GetPartitionedQueueClient(config));
         }
+
+        [Test]
+        public void NormalizePartitionKey_RejectsTooLong()
+        {
+            string tooLong = new string('a', QueueNameValidator.MaxLength + 1);
+            Assert.Throws<ArgumentException>(() => QueuePartition.NormalizePartitionKey(tooLong));
+        }
+
+        [Test]
+        public void Resolve_EmptyTemplate_ReturnsEmpty()
+        {
+            Assert.That(QueuePartition.Resolve("", "tenant"), Is.EqualTo(""));
+        }
+
+        [Test]
+        public void Resolve_NoToken_ReturnsTemplate()
+        {
+            Assert.That(QueuePartition.Resolve("static-queue", "tenant"), Is.EqualTo("static-queue"));
+        }
+
+#pragma warning disable CS0618
+        [Test]
+        public void NormalizePartitionKey_ObsoleteOverload_StillLowercases()
+        {
+            Assert.That(QueuePartition.NormalizePartitionKey("ABC", false), Is.EqualTo("abc"));
+        }
+#pragma warning restore CS0618
+
     }
 }

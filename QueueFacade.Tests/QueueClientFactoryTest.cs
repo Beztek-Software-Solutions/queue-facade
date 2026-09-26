@@ -71,5 +71,26 @@ namespace Beztek.Facade.Queue.Tests
                 "high-{partition}");
             Assert.Throws<ArgumentException>(() => QueueClientFactory.GetQueueClient(config, logger));
         }
+        [Test]
+        public void Redis_RejectsUnresolvedPartitionTemplate()
+        {
+            var config = new RedisQueueProviderConfig("n", "localhost:6379", "q-{partition}");
+            Assert.Throws<ArgumentException>(() => QueueClientFactory.GetQueueClient(config));
+        }
+
+        [Test]
+        public void ServiceBus_RejectsUnresolvedPartitionTemplate()
+        {
+            var config = new AzureServiceBusProviderConfig("n", "Endpoint=sb://x", "q-{partition}");
+            Assert.Throws<ArgumentException>(() => QueueClientFactory.GetQueueClient(config));
+        }
+
+        [Test]
+        public void RabbitMq_RejectsUnresolvedPartitionTemplate()
+        {
+            var config = new RabbitMqProviderConfig("n", "amqp://guest:guest@localhost:5672/", "q-{partition}");
+            Assert.Throws<ArgumentException>(() => QueueClientFactory.GetQueueClient(config));
+        }
+
     }
 }

@@ -31,7 +31,9 @@ namespace Beztek.Facade.Queue.Providers
 
             if (!string.IsNullOrEmpty(config.AccessKeyId) && !string.IsNullOrEmpty(config.SecretAccessKey))
             {
-                var creds = new BasicAWSCredentials(config.AccessKeyId, config.SecretAccessKey);
+                AWSCredentials creds = string.IsNullOrEmpty(config.SessionToken)
+                    ? new BasicAWSCredentials(config.AccessKeyId, config.SecretAccessKey)
+                    : new SessionAWSCredentials(config.AccessKeyId, config.SecretAccessKey, config.SessionToken);
                 return new AmazonSQSClient(creds, sqsConfig);
             }
 

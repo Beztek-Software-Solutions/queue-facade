@@ -9,7 +9,7 @@ namespace Beztek.Facade.Queue
     /// Configuration for the Azure Queue Storage provider.
     /// Queue names use portable <see cref="QueueNameValidator"/> rules (same as SQS).
     /// </summary>
-    public class AzureQueueProviderConfig : IQueueProviderConfig
+    public class AzureQueueProviderConfig : INamedQueueProviderConfig
     {
         /// <summary>
         /// Creates an Azure Queue Storage provider configuration.

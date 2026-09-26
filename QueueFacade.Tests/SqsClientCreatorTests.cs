@@ -54,5 +54,23 @@ namespace Beztek.Facade.Queue.Tests
             Assert.That(client, Is.Not.Null);
             Assert.That(client.Config.RegionEndpoint.SystemName, Is.EqualTo("us-east-1"));
         }
+
+        [Test]
+        public void CreateClient_WithSessionToken_CreatesClient()
+        {
+            var creator = new SqsClientCreator();
+            var config = new SqsQueueProviderConfig(
+                "name",
+                "us-east-1",
+                "high-priority-queue",
+                accessKeyId: "test-key",
+                secretAccessKey: "test-secret",
+                sessionToken: "test-session-token");
+
+            using IAmazonSQS client = creator.CreateClient(config);
+
+            Assert.That(client, Is.Not.Null);
+            Assert.That(client.Config.RegionEndpoint.SystemName, Is.EqualTo("us-east-1"));
+        }
     }
 }

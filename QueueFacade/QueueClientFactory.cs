@@ -18,7 +18,6 @@ namespace Beztek.Facade.Queue
 
         /// <summary>
         /// Gets an instance of Queue Client based on the provider config provided.
-        /// Supports Azure Queue Storage, AWS SQS, and LocalMemory (for testing / single-process).
         /// Queue names must be fully resolved (no <c>{partition}</c>); use
         /// <see cref="GetPartitionedQueueClient"/> for multi-tenant templates.
         /// </summary>
@@ -29,30 +28,11 @@ namespace Beztek.Facade.Queue
             string key = $"{queueProviderConfig.Name}:{queueProviderConfig.QueueProviderType}";
             if (!queueClientMap.TryGetValue(key, out IQueueClient result))
             {
-                switch (queueProviderConfig.QueueProviderType)
-                {
-                    case QueueProviderType.AzureStorage:
-                        AzureQueueProviderConfig config = (AzureQueueProviderConfig)queueProviderConfig;
-                        IQueueProvider queueProvider = new AzureQueueProvider(config, logger);
-                        result = new QueueClient(queueProviderConfig.Name, queueProvider, logger);
-                        queueClientMap.GetOrAdd(key, result);
-                        break;
-                    case QueueProviderType.AwsSqs:
-                        SqsQueueProviderConfig sqsConfig = (SqsQueueProviderConfig)queueProviderConfig;
-                        queueProvider = new SqsQueueProvider(sqsConfig, logger);
-                        result = new QueueClient(queueProviderConfig.Name, queueProvider, logger);
-                        queueClientMap.GetOrAdd(key, result);
-                        break;
-                    case QueueProviderType.LocalMemory:
-                        queueProvider = new LocalMemoryQueueProvider(logger, true, queueProviderConfig.VisibilityTimeoutMilliseconds);
-                        result = new QueueClient(queueProviderConfig.Name, queueProvider, logger);
-                        queueClientMap.GetOrAdd(key, result);
-                        break;
-                    default:
-                        logger?.LogError($"Unknown Queue Provider: {queueProviderConfig.QueueProviderType}");
-                        throw new NotSupportedException($"Unsupported Queue Provider: {queueProviderConfig.QueueProviderType}");
-                }
+                IQueueProvider queueProvider = CreateProvider(queueProviderConfig, logger);
+                result = new QueueClient(queueProviderConfig.Name, queueProvider, logger);
+                queueClientMap.GetOrAdd(key, result);
             }
+
             return result;
         }
 
@@ -69,7 +49,6 @@ namespace Beztek.Facade.Queue
                 throw new ArgumentNullException(nameof(templateConfig));
             }
 
-            // Validate this config even when a client is already cached under the same name.
             PartitionedQueueClient.ValidateTemplate(templateConfig);
 
             string key = $"partitioned:{templateConfig.Name}:{templateConfig.QueueProviderType}";
@@ -78,35 +57,73 @@ namespace Beztek.Facade.Queue
                 _ => new PartitionedQueueClient(templateConfig, logger));
         }
 
-        private static void RejectUnresolvedPartitionTemplates(IQueueProviderConfig config)
+        private static IQueueProvider CreateProvider(IQueueProviderConfig queueProviderConfig, ILogger logger)
         {
-            switch (config.QueueProviderType)
+            switch (queueProviderConfig.QueueProviderType)
             {
-                case QueueProviderType.AwsSqs:
-                {
-                    var sqs = (SqsQueueProviderConfig)config;
-                    if (QueuePartition.ContainsToken(sqs.HighPriorityQueue)
-                        || QueuePartition.ContainsToken(sqs.LowPriorityQueue)
-                        || QueuePartition.ContainsToken(sqs.UnprocessedQueue))
-                    {
-                        throw new ArgumentException(
-                            "Queue names contain {partition}; use QueueClientFactory.GetPartitionedQueueClient and ForPartition(customerId).");
-                    }
-                    break;
-                }
                 case QueueProviderType.AzureStorage:
-                {
-                    var azure = (AzureQueueProviderConfig)config;
-                    if (QueuePartition.ContainsToken(azure.HighPriorityQueue)
-                        || QueuePartition.ContainsToken(azure.LowPriorityQueue)
-                        || QueuePartition.ContainsToken(azure.UnprocessedQueue))
-                    {
-                        throw new ArgumentException(
-                            "Queue names contain {partition}; use QueueClientFactory.GetPartitionedQueueClient and ForPartition(customerId).");
-                    }
-                    break;
-                }
+                    return new AzureQueueProvider((AzureQueueProviderConfig)queueProviderConfig, logger);
+                case QueueProviderType.AwsSqs:
+                    return new SqsQueueProvider((SqsQueueProviderConfig)queueProviderConfig, logger);
+                case QueueProviderType.LocalMemory:
+                    return new LocalMemoryQueueProvider(logger, true, queueProviderConfig.VisibilityTimeoutMilliseconds);
+                case QueueProviderType.AzureServiceBus:
+                    return new AzureServiceBusProvider((AzureServiceBusProviderConfig)queueProviderConfig, logger);
+                case QueueProviderType.RabbitMq:
+                    return new RabbitMqProvider((RabbitMqProviderConfig)queueProviderConfig, logger);
+                case QueueProviderType.GooglePubSub:
+                    return new GooglePubSubProvider((GooglePubSubProviderConfig)queueProviderConfig, logger);
+                case QueueProviderType.Redis:
+                case QueueProviderType.Valkey:
+                case QueueProviderType.Dragonfly:
+                    return new RedisQueueProvider((RedisQueueProviderConfig)queueProviderConfig, logger);
+                case QueueProviderType.ActiveMq:
+                    return new ActiveMqProvider((ActiveMqProviderConfig)queueProviderConfig, logger);
+                case QueueProviderType.Beanstalkd:
+                    return new BeanstalkdProvider((BeanstalkdProviderConfig)queueProviderConfig, logger);
+                default:
+                    logger?.LogError($"Unknown Queue Provider: {queueProviderConfig.QueueProviderType}");
+                    throw new NotSupportedException($"Unsupported Queue Provider: {queueProviderConfig.QueueProviderType}");
             }
         }
+
+        private static void RejectUnresolvedPartitionTemplates(IQueueProviderConfig config)
+        {
+            if (!TryGetPrimaryQueueNames(config, out string high, out string low, out string poison))
+            {
+                return;
+            }
+
+            if (AnyContainsPartitionToken(high, low, poison))
+            {
+                throw new ArgumentException(
+                    "Queue names contain {partition}; use QueueClientFactory.GetPartitionedQueueClient and ForPartition(customerId).");
+            }
+        }
+
+        internal static bool TryGetPrimaryQueueNames(
+            IQueueProviderConfig config,
+            out string high,
+            out string low,
+            out string poison)
+        {
+            if (config is INamedQueueProviderConfig named)
+            {
+                high = named.HighPriorityQueue;
+                low = named.LowPriorityQueue;
+                poison = named.UnprocessedQueue;
+                return true;
+            }
+
+            high = null;
+            low = null;
+            poison = null;
+            return false;
+        }
+
+        private static bool AnyContainsPartitionToken(string high, string low, string poison) =>
+            QueuePartition.ContainsToken(high)
+            || QueuePartition.ContainsToken(low)
+            || QueuePartition.ContainsToken(poison);
     }
 }

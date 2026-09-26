@@ -144,99 +144,116 @@ namespace Beztek.Facade.Queue
 
             if (messages == null || messages.Count == 0)
             {
-                // nothing to enqueue, so return an empty list back
                 this.logger?.LogDebug("Nothing to enqueue, return an empty list back");
                 return new List<T>();
             }
 
-            // Keep track of all the sublists that we post
             List<List<T>> postRequests = new List<List<T>>();
-            // Keep track of the corresponding results of each post that correlates with postRequests, for audit purposes
             List<Task<bool>> postResults = new List<Task<bool>>();
+            ScheduleBatchedPosts(messages, useHighPriorityQueue, activityId, postRequests, postResults);
+            return await CollectFailedBatchResultsAsync(postRequests, postResults).ConfigureAwait(false);
+        }
 
-            // Get the message size if the entire list is posted in a single message
+        private void ScheduleBatchedPosts<T>(
+            List<T> messages,
+            bool useHighPriorityQueue,
+            string activityId,
+            List<List<T>> postRequests,
+            List<Task<bool>> postResults)
+        {
             int messageSize = MessageUtils.GetMessageSize(messages, activityId);
-
             this.logger?.LogDebug($"Requesting post {messages.Count} message(s), the size is {messageSize}");
 
-            // Check that we can post post all of the objects in the list with a single message
             if (messageSize <= queueProvider.MaxMessageSize)
             {
-                // Since we can post all the messages, let us do so.
                 postRequests.Add(messages);
                 postResults.Add(this.Enqueue<List<T>>(messages, useHighPriorityQueue, activityId));
+                return;
             }
-            else
+
+            ScheduleOversizedBatchSplits(messages, useHighPriorityQueue, activityId, postRequests, postResults);
+        }
+
+        private void ScheduleOversizedBatchSplits<T>(
+            List<T> messages,
+            bool useHighPriorityQueue,
+            string activityId,
+            List<List<T>> postRequests,
+            List<Task<bool>> postResults)
+        {
+            if (messages.Count == 1)
             {
-                // Since all the messages in the object list cannot be posted in a single message, break down the original list
-                // into two approximately equally sized sublists keep them in the lists array
-                List<List<T>> subLists = new List<List<T>>();
-                int subListSize = messages.Count;
-
-                if (subListSize == 1)
-                {
-                    // There is only one message, and it is too large, so add it to the failed results list
-                    postRequests.Add(messages);
-                    postResults.Add(Task.FromResult(false));
-                }
-                else
-                {
-                    subLists.Add(messages.GetRange(0, subListSize / 2));
-                    subLists.Add(messages.GetRange(subListSize / 2, subListSize - subListSize / 2));
-
-                    // Iterate through the lists array to process each sublist
-                    for (int index = 0; index < subLists.Count; index++)
-                    {
-                        List<T> currSubList = subLists[index];
-
-                        // Get the message size if all the objects in the sublist were posted in one message
-                        int subMessageSize = MessageUtils.GetMessageSize(currSubList, activityId);
-
-                        // Check if the message size is within the max message size limit
-                        if (subMessageSize > queueProvider.MaxMessageSize)
-                        {
-                            // Since the size of the single message from the sublist is still too large, handle it 
-                            subListSize = currSubList.Count;
-
-                            if (subListSize == 1)
-                            {
-                                // There is only one message, and it is too large, so add it to the failed results list
-                                postRequests.Add(currSubList);
-                                postResults.Add(Task.FromResult(false));
-                            }
-                            else
-                            {
-                                // Break down the large list into two smaller lists and add them to the subLists to be processed next
-                                subLists.Insert(index + 1, currSubList.GetRange(0, subListSize / 2));
-                                subLists.Insert(index + 2, currSubList.GetRange(subListSize / 2, subListSize - subListSize / 2));
-                            }
-
-                            // Get out of this iteration, since these broken sublists will be start to be processed in the next iteration
-                            continue;
-                        }
-
-                        // Since we have come here, the subList from the current iteration can be posted in a single message.
-                        this.logger?.LogDebug($"Posting {currSubList.Count} message(s), the size is {subMessageSize}");
-
-                        // Posting all the messages in the current subList, and tracking success asynchronously
-                        postRequests.Add(currSubList);
-                        postResults.Add(this.Enqueue<List<T>>(currSubList, useHighPriorityQueue, activityId));
-                    }
-                }
+                MarkBatchAsFailed(messages, postRequests, postResults);
+                return;
             }
 
-            // Read all the results from the asynchronous list posts, and track failed lists
+            List<List<T>> subLists = new List<List<T>>
+            {
+                messages.GetRange(0, messages.Count / 2),
+                messages.GetRange(messages.Count / 2, messages.Count - messages.Count / 2),
+            };
+
+            for (int index = 0; index < subLists.Count; index++)
+            {
+                List<T> currSubList = subLists[index];
+                int subMessageSize = MessageUtils.GetMessageSize(currSubList, activityId);
+
+                if (subMessageSize > queueProvider.MaxMessageSize)
+                {
+                    SplitOrFailOversizedSubList(currSubList, index, subLists, postRequests, postResults);
+                    continue;
+                }
+
+                this.logger?.LogDebug($"Posting {currSubList.Count} message(s), the size is {subMessageSize}");
+                postRequests.Add(currSubList);
+                postResults.Add(this.Enqueue<List<T>>(currSubList, useHighPriorityQueue, activityId));
+            }
+        }
+
+        private static void SplitOrFailOversizedSubList<T>(
+            List<T> currSubList,
+            int index,
+            List<List<T>> subLists,
+            List<List<T>> postRequests,
+            List<Task<bool>> postResults)
+        {
+            int subListSize = currSubList.Count;
+            if (subListSize == 1)
+            {
+                MarkBatchAsFailed(currSubList, postRequests, postResults);
+                return;
+            }
+
+            subLists.Insert(index + 1, currSubList.GetRange(0, subListSize / 2));
+            subLists.Insert(index + 2, currSubList.GetRange(subListSize / 2, subListSize - subListSize / 2));
+        }
+
+        private static void MarkBatchAsFailed<T>(
+            List<T> batch,
+            List<List<T>> postRequests,
+            List<Task<bool>> postResults)
+        {
+            postRequests.Add(batch);
+            postResults.Add(Task.FromResult(false));
+        }
+
+        private async Task<List<T>> CollectFailedBatchResultsAsync<T>(
+            List<List<T>> postRequests,
+            List<Task<bool>> postResults)
+        {
             List<T> failedResults = new List<T>();
             for (int index = 0; index < postResults.Count; index++)
             {
                 bool result = await postResults[index].ConfigureAwait(false);
-                if (result) continue;
-                // Since the post failed, add to failed Results
+                if (result)
+                {
+                    continue;
+                }
+
                 failedResults.AddRange(postRequests[index]);
                 this.logger?.LogError("EnqueueLargeList() - the post failed");
             }
 
-            // This result list contains all unposted objects, so return it.
             return failedResults;
         }
 
@@ -288,129 +305,186 @@ namespace Beztek.Facade.Queue
         public virtual async Task DequeueAndProcess(QueueDequeueConfig queueDequeueConfig)
         {
             queueProvider.CreateIfNotExists();
-
-            // One indicates the method is already in use
-            if (Interlocked.Exchange(ref this.pollingFlag, One) == One)
-            {
-                this.logger?.LogError("DequeueAndProcess() - throw new InvalidOperationException");
-                throw new InvalidOperationException("Dequeueing is already being done");
-            }
-
+            BeginExclusivePollingOrThrow();
             this.QueueDequeueConfig = queueDequeueConfig;
 
-            // keeps messages when read from backend queue
             List<object> unprocessedMessages = new List<object>(queueDequeueConfig.MaxMessagesPerPollingInterval);
-
             bool isMessagesHighPriority = true;
+            int maxMessagesToRetrieve = Math.Min(
+                queueDequeueConfig.MaxMessagesPerPollingInterval,
+                queueProvider.MaxMessageCountPerPoll);
 
-            // If the queue provider has a smaller max message count per poll, we need to restrict our max messages to this number
-            int maxMessagesToRetrieve = Math.Min(queueDequeueConfig.MaxMessagesPerPollingInterval, queueProvider.MaxMessageCountPerPoll);
-
-            long currIteration = 0;
             while (this.pollingFlag == One && (!queueDequeueConfig.CancellationToken.IsCancellationRequested))
             {
-                currIteration++;
                 try
                 {
-                    // Flag that polling has started
                     this.isPolling = true;
-
-                    DateTime startDateTime = DateTime.Now;
-                    int diffInMillis = 0;
-
-                    int i = 0;
-                    int availableAsyncProcessSlots = queueDequeueConfig.MaxAsynchronousProcesses - currActiveProcesses;
-
-                    List<object> messageHookList = new List<object>();
-
-                    while (i < queueDequeueConfig.MaxMessagesPerPollingInterval && availableAsyncProcessSlots > 0 && this.pollingFlag == One && (!QueueDequeueConfig.CancellationToken.IsCancellationRequested))
-                    {
-                        // Populate unprocessed messages list if empty
-                        if (unprocessedMessages.Count == 0 && currActiveProcesses < maxMessagesToRetrieve)
-                        {
-                            isMessagesHighPriority = this.RefillUnprocessedMessages(maxMessagesToRetrieve, unprocessedMessages);
-                        }
-
-                        // Slow down by pollIntervalInMilliseconds to avoid a race condition if there is no message in either queue
-                        if (i == 0 && unprocessedMessages.Count == 0)
-                        {
-                            await Task.Delay(TimeSpan.FromMilliseconds(QueueDequeueConfig.PollIntervalMilliseconds)).ConfigureAwait(false);
-                        }
-
-                        if (unprocessedMessages.Count > 0)
-                        {
-                            object messageHook = unprocessedMessages[0];
-
-                            unprocessedMessages.RemoveAt(0);
-
-                            if (QueueDequeueConfig.BatchSize == 1)
-                                // Start a thread pool to manage threads for PollMessages. Additional threads may or may not be created
-                                //Note: do not await. We want this to run in a separte thread asynchronous to this flow
-                                _ = this.ProcessMessage(messageHook, isMessagesHighPriority);
-                            else
-                            {
-                                // Add the message hook to the list, and process it when the list reaches the configured batch size
-                                messageHookList.Add(messageHook);
-                                if (messageHookList.Count >= QueueDequeueConfig.BatchSize)
-                                {
-                                    // process the list of messages in messageHookList (using a copy to ensure that it is not cleared before invocation)
-                                    List<object> clonedList = new List<object>(messageHookList);
-
-                                    // Do not await. We want this to run in a separte thread asynchronous to this flow
-                                    _ = this.ProcessMessageList(clonedList, isMessagesHighPriority);
-
-                                    // Reassign the messageHookList to a new empty list
-                                    messageHookList = new List<object>();
-                                }
-                            }
-
-                            i++;
-                        }
-
-                        diffInMillis = Convert.ToInt32((DateTime.Now - startDateTime).TotalMilliseconds);
-
-                        if (diffInMillis >= QueueDequeueConfig.PollIntervalMilliseconds)
-                        {
-                            break;
-                        }
-                    }
-
-                    if (availableAsyncProcessSlots <= 0)
-                    {
-                        this.logger?.LogDebug("PollMessage() - Reached max async process count of " + QueueDequeueConfig.MaxAsynchronousProcesses);
-                        // Sleep for pollIntervalInMilliseconds before proceeding, to avoid a race condition
-                        await Task.Delay(TimeSpan.FromMilliseconds(QueueDequeueConfig.PollIntervalMilliseconds)).ConfigureAwait(false);
-                    }
-
-                    // process the remaining list of messages since we are either exiting the loop or have completed a polling interval
-                    if (messageHookList.Count > 0)
-                    {
-                        // process the list of messages in messageHookList (using a copy to ensure that it is not cleared before invocation)
-                        List<object> clonedList = new List<object>(messageHookList);
-                        await ProcessMessageList(clonedList, isMessagesHighPriority).ConfigureAwait(false);
-                    }
-
-                    bool messageLimitReached = i >= QueueDequeueConfig.MaxMessagesPerPollingInterval;
-                    bool pollingIntervalReached = diffInMillis >= QueueDequeueConfig.PollIntervalMilliseconds;
-                    if (this.pollingFlag == One && (!QueueDequeueConfig.CancellationToken.IsCancellationRequested) && (!pollingIntervalReached) && messageLimitReached)
-                    {
-                        await Task.Delay(TimeSpan.FromMilliseconds(QueueDequeueConfig.PollIntervalMilliseconds - diffInMillis)).ConfigureAwait(false);
-                    }
+                    isMessagesHighPriority = await RunOnePollingIntervalAsync(
+                        queueDequeueConfig,
+                        unprocessedMessages,
+                        maxMessagesToRetrieve,
+                        isMessagesHighPriority).ConfigureAwait(false);
                 }
-
-                // We should never come here - catch-all safety net. This is to prevent the polling from exiting unexpectedly.
                 catch (Exception ex)
                 {
-                    // Sleep for pollIntervalInMilliseconds to avoid a race condition
-                    await Task.Delay(TimeSpan.FromMilliseconds(QueueDequeueConfig.PollIntervalMilliseconds)).ConfigureAwait(false);
-
-                    this.logger?.LogError($"PollMessages() - {ex.StackTrace}");
-                    // We do not rethrow exception here otherwise queue polling will stop.
+                    // Safety net: keep polling alive; do not rethrow.
+                    await HandleUnexpectedPollExceptionAsync(ex).ConfigureAwait(false);
                 }
             }
 
             this.isPolling = false;
         }
+
+        private void BeginExclusivePollingOrThrow()
+        {
+            if (Interlocked.Exchange(ref this.pollingFlag, One) == One)
+            {
+                this.logger?.LogError("DequeueAndProcess() - throw new InvalidOperationException");
+                throw new InvalidOperationException("Dequeueing is already being done");
+            }
+        }
+
+        private async Task<bool> RunOnePollingIntervalAsync(
+            QueueDequeueConfig queueDequeueConfig,
+            List<object> unprocessedMessages,
+            int maxMessagesToRetrieve,
+            bool isMessagesHighPriority)
+        {
+            DateTime startDateTime = DateTime.Now;
+            int availableAsyncProcessSlots = queueDequeueConfig.MaxAsynchronousProcesses - currActiveProcesses;
+            List<object> messageHookList = new List<object>();
+
+            (int dispatched, bool isHighPriority) = await DispatchMessagesForIntervalAsync(
+                queueDequeueConfig,
+                unprocessedMessages,
+                maxMessagesToRetrieve,
+                availableAsyncProcessSlots,
+                messageHookList,
+                startDateTime,
+                isMessagesHighPriority).ConfigureAwait(false);
+
+            await PaceWhenSaturatedAsync(availableAsyncProcessSlots).ConfigureAwait(false);
+            await FlushRemainingBatchAsync(messageHookList, isHighPriority).ConfigureAwait(false);
+            await PaceUntilNextIntervalAsync(dispatched, startDateTime).ConfigureAwait(false);
+            return isHighPriority;
+        }
+
+        private async Task<(int Dispatched, bool IsHighPriority)> DispatchMessagesForIntervalAsync(
+            QueueDequeueConfig queueDequeueConfig,
+            List<object> unprocessedMessages,
+            int maxMessagesToRetrieve,
+            int availableAsyncProcessSlots,
+            List<object> messageHookList,
+            DateTime startDateTime,
+            bool isHighPriority)
+        {
+            int dispatched = 0;
+            while (ShouldContinueDispatch(queueDequeueConfig, dispatched, availableAsyncProcessSlots))
+            {
+                if (unprocessedMessages.Count == 0 && currActiveProcesses < maxMessagesToRetrieve)
+                {
+                    isHighPriority = this.RefillUnprocessedMessages(maxMessagesToRetrieve, unprocessedMessages);
+                }
+
+                if (dispatched == 0 && unprocessedMessages.Count == 0)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(QueueDequeueConfig.PollIntervalMilliseconds)).ConfigureAwait(false);
+                }
+
+                if (unprocessedMessages.Count > 0)
+                {
+                    object messageHook = unprocessedMessages[0];
+                    unprocessedMessages.RemoveAt(0);
+                    DispatchFetchedMessage(messageHook, isHighPriority, messageHookList);
+                    dispatched++;
+                }
+
+                if (ElapsedMillis(startDateTime) >= QueueDequeueConfig.PollIntervalMilliseconds)
+                {
+                    break;
+                }
+            }
+
+            return (dispatched, isHighPriority);
+        }
+
+        private bool ShouldContinueDispatch(
+            QueueDequeueConfig queueDequeueConfig,
+            int dispatched,
+            int availableAsyncProcessSlots)
+        {
+            return dispatched < queueDequeueConfig.MaxMessagesPerPollingInterval
+                && availableAsyncProcessSlots > 0
+                && this.pollingFlag == One
+                && (!QueueDequeueConfig.CancellationToken.IsCancellationRequested);
+        }
+
+        private void DispatchFetchedMessage(object messageHook, bool isHighPriority, List<object> messageHookList)
+        {
+            if (QueueDequeueConfig.BatchSize == 1)
+            {
+                // Fire-and-forget: process on the thread pool without blocking the poll loop.
+                _ = this.ProcessMessage(messageHook, isHighPriority);
+                return;
+            }
+
+            messageHookList.Add(messageHook);
+            if (messageHookList.Count < QueueDequeueConfig.BatchSize)
+            {
+                return;
+            }
+
+            List<object> clonedList = new List<object>(messageHookList);
+            _ = this.ProcessMessageList(clonedList, isHighPriority);
+            messageHookList.Clear();
+        }
+
+        private async Task PaceWhenSaturatedAsync(int availableAsyncProcessSlots)
+        {
+            if (availableAsyncProcessSlots > 0)
+            {
+                return;
+            }
+
+            this.logger?.LogDebug("PollMessage() - Reached max async process count of " + QueueDequeueConfig.MaxAsynchronousProcesses);
+            await Task.Delay(TimeSpan.FromMilliseconds(QueueDequeueConfig.PollIntervalMilliseconds)).ConfigureAwait(false);
+        }
+
+        private async Task FlushRemainingBatchAsync(List<object> messageHookList, bool isHighPriority)
+        {
+            if (messageHookList.Count == 0)
+            {
+                return;
+            }
+
+            List<object> clonedList = new List<object>(messageHookList);
+            await ProcessMessageList(clonedList, isHighPriority).ConfigureAwait(false);
+        }
+
+        private async Task PaceUntilNextIntervalAsync(int dispatched, DateTime startDateTime)
+        {
+            int diffInMillis = ElapsedMillis(startDateTime);
+            bool messageLimitReached = dispatched >= QueueDequeueConfig.MaxMessagesPerPollingInterval;
+            bool pollingIntervalReached = diffInMillis >= QueueDequeueConfig.PollIntervalMilliseconds;
+            if (this.pollingFlag != One
+                || QueueDequeueConfig.CancellationToken.IsCancellationRequested
+                || pollingIntervalReached
+                || !messageLimitReached)
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(QueueDequeueConfig.PollIntervalMilliseconds - diffInMillis)).ConfigureAwait(false);
+        }
+
+        private async Task HandleUnexpectedPollExceptionAsync(Exception ex)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(QueueDequeueConfig.PollIntervalMilliseconds)).ConfigureAwait(false);
+            this.logger?.LogError($"PollMessages() - {ex.StackTrace}");
+        }
+
+        private static int ElapsedMillis(DateTime startDateTime) =>
+            Convert.ToInt32((DateTime.Now - startDateTime).TotalMilliseconds);
 
         /// <inheritdoc />
         public virtual async Task<bool> StopDequeuing()
@@ -542,20 +616,9 @@ namespace Beztek.Facade.Queue
 
             try
             {
-                string messageStr = queueProvider.GetMessageBody(messageHook);
-
-                if (string.IsNullOrEmpty(messageStr))
+                if (!TryParseIncomingMessage(messageHook, out message, out attempt, out activityId))
                 {
-                    this.logger?.LogError("Message was empty or null.");
                     return;
-                }
-
-                message = JsonSerializer.Deserialize<Message>(messageStr);
-                activityId = message?.ActivityId;
-                attempt = Math.Max(1, queueProvider.GetReceiveCount(messageHook));
-                if (message != null)
-                {
-                    message.ProcessingAttempt = attempt;
                 }
 
                 if (!string.IsNullOrWhiteSpace(activityId))
@@ -565,59 +628,16 @@ namespace Beztek.Facade.Queue
 
                 this.logger?.LogDebug($"Processing message for activityId: {activityId}, attempt: {attempt}/{this.QueueDequeueConfig.MaxProcessingAttempts}");
 
-                Boolean processed = false;
-
-                Interlocked.Increment(ref currActiveProcesses);
-                try
-                {
-                    processed = await this.QueueDequeueConfig.ProcessorHandler.Process(message).ConfigureAwait(false);
-                }
-                finally
-                {
-                    Interlocked.Decrement(ref currActiveProcesses);
-                }
-
-                if (!processed)
-                {
-                    bool sentFlag = await this.EnqueueUnprocessedMessages(message, activityId).ConfigureAwait(false);
-                    this.logger?.LogWarning($"Message processing returned false; moved to poison queue (sent={sentFlag}). activityId: {activityId}");
-                }
-
-                await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
+                bool processed = await RunProcessorAsync(message).ConfigureAwait(false);
+                await FinalizeSingleMessageAsync(messageHook, isHighPriorityQueue, message, activityId, processed).ConfigureAwait(false);
             }
             catch (ApplicationException)
             {
-                this.logger?.LogError($"Application could not process message. Message being deleted from queue. activityId: {activityId}");
-                try
-                {
-                    await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
-                }
-                catch (Exception e)
-                {
-                    this.logger?.LogError(e, e.Message);
-                }
+                await DeleteAfterApplicationFailureAsync(messageHook, isHighPriorityQueue, activityId).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                this.logger?.LogError(ex, $"Queue ProcessMessage Exception (attempt {attempt}/{this.QueueDequeueConfig?.MaxProcessingAttempts})");
-                if (attempt >= (this.QueueDequeueConfig?.MaxProcessingAttempts ?? QueueDequeueConfig.DefaultMaxProcessingAttempts))
-                {
-                    try
-                    {
-                        if (message != null)
-                        {
-                            bool sentFlag = await this.EnqueueUnprocessedMessages(message, activityId).ConfigureAwait(false);
-                            this.logger?.LogWarning($"Max processing attempts reached; moved to poison queue (sent={sentFlag}). activityId: {activityId}");
-                        }
-
-                        await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
-                    }
-                    catch (Exception poisonEx)
-                    {
-                        this.logger?.LogError(poisonEx, "Failed to move message to poison queue after max attempts");
-                    }
-                }
-                // else: leave message — visibility timeout (~30s) will make it reappear and increment receive count
+                await HandleSingleProcessExceptionAsync(messageHook, isHighPriorityQueue, message, activityId, attempt, ex).ConfigureAwait(false);
             }
             finally
             {
@@ -630,138 +650,271 @@ namespace Beztek.Facade.Queue
         /// </summary>
         internal async Task ProcessMessageList(List<object> messageHookList, bool isHighPriorityQueue)
         {
-            bool hasError = false;
-            List<Message> messageList = new List<Message>();
-            List<int> attempts = new List<int>();
+            if (!TryBuildBatch(messageHookList, out List<Message> messageList, out List<int> attempts))
+            {
+                // Errors during parse: leave the batch for visibility-timeout retry.
+                return;
+            }
+
             try
             {
-                foreach (object messageHook in messageHookList)
-                {
-                    try
-                    {
-                        string messageStr = queueProvider.GetMessageBody(messageHook);
+                List<bool> processed = await RunBatchProcessorAsync(messageList).ConfigureAwait(false);
+                await FinalizeBatchResultsAsync(messageHookList, isHighPriorityQueue, messageList, attempts, processed).ConfigureAwait(false);
+                this.logger?.LogDebug($"Completed processing of Queue ProcessMessageList with {messageHookList.Count} messages");
+            }
+            catch (Exception ex)
+            {
+                this.logger?.LogError(ex, $"Queue ProcessMessageList Exception");
+                await PoisonBatchAtMaxAttemptsAsync(messageHookList, isHighPriorityQueue, messageList, attempts).ConfigureAwait(false);
+            }
+        }
 
-                        if (string.IsNullOrEmpty(messageStr))
-                        {
-                            this.logger?.LogError("Message was empty or null.");
-                            hasError = true;
-                            break;
-                        }
+        private bool TryParseIncomingMessage(object messageHook, out Message message, out int attempt, out string activityId)
+        {
+            message = null;
+            attempt = 1;
+            activityId = null;
 
-                        Message message = JsonSerializer.Deserialize<Message>(messageStr);
-                        int attempt = Math.Max(1, queueProvider.GetReceiveCount(messageHook));
-                        if (message != null)
-                        {
-                            message.ProcessingAttempt = attempt;
-                        }
+            string messageStr = queueProvider.GetMessageBody(messageHook);
+            if (string.IsNullOrEmpty(messageStr))
+            {
+                this.logger?.LogError("Message was empty or null.");
+                return false;
+            }
 
-                        attempts.Add(attempt);
-                        messageList.Add(message);
+            message = JsonSerializer.Deserialize<Message>(messageStr);
+            activityId = message?.ActivityId;
+            attempt = Math.Max(1, queueProvider.GetReceiveCount(messageHook));
+            if (message != null)
+            {
+                message.ProcessingAttempt = attempt;
+            }
 
-                        this.logger?.LogDebug($"Processing message for activityId: {message?.ActivityId}, attempt: {attempt}/{this.QueueDequeueConfig.MaxProcessingAttempts}");
-                    }
-                    catch (Exception e)
-                    {
-                        this.logger?.LogError(e, e.Message);
-                        hasError = true;
-                        break;
-                    }
-                }
+            return true;
+        }
+
+        private async Task<bool> RunProcessorAsync(Message message)
+        {
+            Interlocked.Increment(ref currActiveProcesses);
+            try
+            {
+                return await this.QueueDequeueConfig.ProcessorHandler.Process(message).ConfigureAwait(false);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref currActiveProcesses);
+            }
+        }
+
+        private async Task<List<bool>> RunBatchProcessorAsync(List<Message> messageList)
+        {
+            Interlocked.Increment(ref currActiveProcesses);
+            try
+            {
+                return await this.QueueDequeueConfig.ProcessorHandler.Process(messageList).ConfigureAwait(false);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref currActiveProcesses);
+            }
+        }
+
+        private async Task FinalizeSingleMessageAsync(
+            object messageHook,
+            bool isHighPriorityQueue,
+            Message message,
+            string activityId,
+            bool processed)
+        {
+            if (!processed)
+            {
+                bool sentFlag = await this.EnqueueUnprocessedMessages(message, activityId).ConfigureAwait(false);
+                this.logger?.LogWarning($"Message processing returned false; moved to poison queue (sent={sentFlag}). activityId: {activityId}");
+            }
+
+            await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
+        }
+
+        private async Task DeleteAfterApplicationFailureAsync(object messageHook, bool isHighPriorityQueue, string activityId)
+        {
+            this.logger?.LogError($"Application could not process message. Message being deleted from queue. activityId: {activityId}");
+            try
+            {
+                await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
             }
             catch (Exception e)
             {
                 this.logger?.LogError(e, e.Message);
-                hasError = true;
+            }
+        }
+
+        private async Task HandleSingleProcessExceptionAsync(
+            object messageHook,
+            bool isHighPriorityQueue,
+            Message message,
+            string activityId,
+            int attempt,
+            Exception ex)
+        {
+            this.logger?.LogError(ex, $"Queue ProcessMessage Exception (attempt {attempt}/{this.QueueDequeueConfig?.MaxProcessingAttempts})");
+            if (attempt < (this.QueueDequeueConfig?.MaxProcessingAttempts ?? QueueDequeueConfig.DefaultMaxProcessingAttempts))
+            {
+                // Leave message — visibility timeout (~30s) will make it reappear and increment receive count
+                return;
             }
 
-            // If there are errors we do not want to go through this block, but rather let the entire list get reprocessed
-            if (!hasError)
+            try
             {
-                List<bool> processed;
+                if (message != null)
+                {
+                    bool sentFlag = await this.EnqueueUnprocessedMessages(message, activityId).ConfigureAwait(false);
+                    this.logger?.LogWarning($"Max processing attempts reached; moved to poison queue (sent={sentFlag}). activityId: {activityId}");
+                }
+
+                await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
+            }
+            catch (Exception poisonEx)
+            {
+                this.logger?.LogError(poisonEx, "Failed to move message to poison queue after max attempts");
+            }
+        }
+
+        private bool TryBuildBatch(List<object> messageHookList, out List<Message> messageList, out List<int> attempts)
+        {
+            messageList = new List<Message>();
+            attempts = new List<int>();
+
+            try
+            {
+                foreach (object messageHook in messageHookList)
+                {
+                    if (!TryAppendBatchMessage(messageHook, messageList, attempts))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                this.logger?.LogError(e, e.Message);
+                return false;
+            }
+        }
+
+        private bool TryAppendBatchMessage(object messageHook, List<Message> messageList, List<int> attempts)
+        {
+            try
+            {
+                string messageStr = queueProvider.GetMessageBody(messageHook);
+                if (string.IsNullOrEmpty(messageStr))
+                {
+                    this.logger?.LogError("Message was empty or null.");
+                    return false;
+                }
+
+                Message message = JsonSerializer.Deserialize<Message>(messageStr);
+                int attempt = Math.Max(1, queueProvider.GetReceiveCount(messageHook));
+                if (message != null)
+                {
+                    message.ProcessingAttempt = attempt;
+                }
+
+                attempts.Add(attempt);
+                messageList.Add(message);
+                this.logger?.LogDebug(
+                    $"Processing message for activityId: {message?.ActivityId}, attempt: {attempt}/{this.QueueDequeueConfig.MaxProcessingAttempts}");
+                return true;
+            }
+            catch (Exception e)
+            {
+                this.logger?.LogError(e, e.Message);
+                return false;
+            }
+        }
+
+        private async Task FinalizeBatchResultsAsync(
+            List<object> messageHookList,
+            bool isHighPriorityQueue,
+            List<Message> messageList,
+            List<int> attempts,
+            List<bool> processed)
+        {
+            for (int index = 0; index < processed.Count; index++)
+            {
+                Message unwrappedMessage = messageList[index];
+                bool success = processed[index];
+                object messageHook = messageHookList[index];
+
                 try
                 {
-                    Interlocked.Increment(ref currActiveProcesses);
-                    try
+                    if (!success)
                     {
-                        processed = await this.QueueDequeueConfig.ProcessorHandler.Process(messageList).ConfigureAwait(false);
-                    }
-                    finally
-                    {
-                        Interlocked.Decrement(ref currActiveProcesses);
+                        bool sentFlag = await this.EnqueueUnprocessedMessages(unwrappedMessage).ConfigureAwait(false);
+                        this.logger?.LogWarning($"Message processing returned false; moved to poison queue (sent={sentFlag}). activityId: {unwrappedMessage.ActivityId}");
                     }
 
-                    for (int index = 0; index < processed.Count; index++)
-                    {
-                        Message unwrappedMessage = messageList[index];
-                        bool success = processed[index];
-                        object messageHook = messageHookList[index];
-
-                        try
-                        {
-                            if (!success)
-                            {
-                                bool sentFlag = await this.EnqueueUnprocessedMessages(unwrappedMessage).ConfigureAwait(false);
-                                this.logger?.LogWarning($"Message processing returned false; moved to poison queue (sent={sentFlag}). activityId: {unwrappedMessage.ActivityId}");
-                            }
-
-                            await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
-                        }
-                        catch (ApplicationException)
-                        {
-                            this.logger?.LogError($"Application could not process message. Message being deleted from queue. activityId: {unwrappedMessage.ActivityId}");
-                            try
-                            {
-                                await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
-                            }
-                            catch (Exception e)
-                            {
-                                this.logger?.LogError(e, e.Message);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            this.logger?.LogError(ex, $"Queue ProcessMessageList per-message Exception");
-                            int attempt = attempts[index];
-                            if (attempt >= this.QueueDequeueConfig.MaxProcessingAttempts)
-                            {
-                                try
-                                {
-                                    bool sentFlag = await this.EnqueueUnprocessedMessages(unwrappedMessage).ConfigureAwait(false);
-                                    this.logger?.LogWarning($"Max processing attempts reached; moved to poison queue (sent={sentFlag}). activityId: {unwrappedMessage.ActivityId}");
-                                    await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
-                                }
-                                catch (Exception poisonEx)
-                                {
-                                    this.logger?.LogError(poisonEx, "Failed to move message to poison queue after max attempts");
-                                }
-                            }
-                        }
-                    }
-
-                    this.logger?.LogDebug($"Completed processing of Queue ProcessMessageList with {messageHookList.Count} messages");
+                    await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
+                }
+                catch (ApplicationException)
+                {
+                    await DeleteAfterApplicationFailureAsync(messageHook, isHighPriorityQueue, unwrappedMessage.ActivityId).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
-                    this.logger?.LogError(ex, $"Queue ProcessMessageList Exception");
-                    int maxAttempts = this.QueueDequeueConfig?.MaxProcessingAttempts ?? QueueDequeueConfig.DefaultMaxProcessingAttempts;
-                    for (int index = 0; index < messageList.Count; index++)
-                    {
-                        if (attempts[index] < maxAttempts)
-                        {
-                            continue;
-                        }
+                    this.logger?.LogError(ex, $"Queue ProcessMessageList per-message Exception");
+                    await MaybePoisonAtMaxAttemptsAsync(messageHook, isHighPriorityQueue, unwrappedMessage, attempts[index]).ConfigureAwait(false);
+                }
+            }
+        }
 
-                        try
-                        {
-                            bool sentFlag = await this.EnqueueUnprocessedMessages(messageList[index]).ConfigureAwait(false);
-                            this.logger?.LogWarning($"Max processing attempts reached after batch failure; moved to poison queue (sent={sentFlag}). activityId: {messageList[index]?.ActivityId}");
-                            await queueProvider.DeleteMessageAsync(messageHookList[index], isHighPriorityQueue).ConfigureAwait(false);
-                        }
-                        catch (Exception poisonEx)
-                        {
-                            this.logger?.LogError(poisonEx, "Failed to move message to poison queue after max attempts");
-                        }
-                    }
+        private async Task MaybePoisonAtMaxAttemptsAsync(
+            object messageHook,
+            bool isHighPriorityQueue,
+            Message message,
+            int attempt)
+        {
+            if (attempt < this.QueueDequeueConfig.MaxProcessingAttempts)
+            {
+                return;
+            }
+
+            try
+            {
+                bool sentFlag = await this.EnqueueUnprocessedMessages(message).ConfigureAwait(false);
+                this.logger?.LogWarning($"Max processing attempts reached; moved to poison queue (sent={sentFlag}). activityId: {message.ActivityId}");
+                await queueProvider.DeleteMessageAsync(messageHook, isHighPriorityQueue).ConfigureAwait(false);
+            }
+            catch (Exception poisonEx)
+            {
+                this.logger?.LogError(poisonEx, "Failed to move message to poison queue after max attempts");
+            }
+        }
+
+        private async Task PoisonBatchAtMaxAttemptsAsync(
+            List<object> messageHookList,
+            bool isHighPriorityQueue,
+            List<Message> messageList,
+            List<int> attempts)
+        {
+            int maxAttempts = this.QueueDequeueConfig?.MaxProcessingAttempts ?? QueueDequeueConfig.DefaultMaxProcessingAttempts;
+            for (int index = 0; index < messageList.Count; index++)
+            {
+                if (attempts[index] < maxAttempts)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    bool sentFlag = await this.EnqueueUnprocessedMessages(messageList[index]).ConfigureAwait(false);
+                    this.logger?.LogWarning($"Max processing attempts reached after batch failure; moved to poison queue (sent={sentFlag}). activityId: {messageList[index]?.ActivityId}");
+                    await queueProvider.DeleteMessageAsync(messageHookList[index], isHighPriorityQueue).ConfigureAwait(false);
+                }
+                catch (Exception poisonEx)
+                {
+                    this.logger?.LogError(poisonEx, "Failed to move message to poison queue after max attempts");
                 }
             }
         }
